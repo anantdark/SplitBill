@@ -2,7 +2,6 @@ package com.anant.splitbill.data.analytics
 
 import com.anant.splitbill.data.database.EntryEntity
 import com.anant.splitbill.data.model.EntryType
-import java.time.Instant
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.TextStyle
@@ -44,19 +43,44 @@ object UsageAnalytics {
         val currentMonth = YearMonth.now(zoneId)
         val window = (months - 1 downTo 0).map { currentMonth.minusMonths(it.toLong()) }.toSet()
 
+        val readingsByMember = readings
+            .filter { it.memberId != null }
+            .groupBy { it.memberId!! }
+            .mapValues { (_, memberReadings) ->
+                memberReadings.sortedBy { it.timestampEpochMs }
+            }
+
+        val baselineReadingIds = readingsByMember.mapValues { (_, memberReadings) ->
+            memberReadings.first().id
+        }
+
         val monthlyTotals = window.associateWith { 0.0 }.toMutableMap()
         val memberTotals = mutableMapOf<String, Pair<String, Double>>()
 
-        for (entry in readings) {
-            val consumption = entry.consumption ?: continue
-            if (consumption <= 0.0) continue
-            val month = YearMonth.from(Instant.ofEpochMilli(entry.timestampEpochMs).atZone(zoneId))
-            if (month in window) {
-                monthlyTotals[month] = monthlyTotals.getValue(month) + consumption
+        for ((memberId, memberReadings) in readingsByMember) {
+            for (entry in memberReadings) {
+                if (entry.id in baselineReadingIds.values) continue
+                val consumption = entry.consumption ?: continue
+                if (consumption <= 0.0) continue
+                val existing = memberTotals[memberId]
+                memberTotals[memberId] = entry.memberName to ((existing?.second ?: 0.0) + consumption)
             }
-            val memberId = entry.memberId ?: continue
-            val existing = memberTotals[memberId]
-            memberTotals[memberId] = entry.memberName to ((existing?.second ?: 0.0) + consumption)
+
+            for (month in window) {
+                val monthStart = month.atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+                val monthEnd = month.atEndOfMonth().plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli() - 1
+
+                val inMonth = memberReadings.filter { it.timestampEpochMs in monthStart..monthEnd }
+                if (inMonth.isEmpty()) continue
+
+                val lastInMonth = inMonth.last()
+                val priorReading = memberReadings.lastOrNull { it.timestampEpochMs < monthStart }
+                val startValue = priorReading?.value ?: inMonth.first().value
+                val monthlyUsage = (lastInMonth.value - startValue).coerceAtLeast(0.0)
+                if (monthlyUsage > 0.0) {
+                    monthlyTotals[month] = monthlyTotals.getValue(month) + monthlyUsage
+                }
+            }
         }
 
         val monthly = window.sorted().map { month ->

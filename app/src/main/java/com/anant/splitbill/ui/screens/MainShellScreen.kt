@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +60,8 @@ fun MainShellScreen(
     members: List<MemberBalance>,
     versionName: String,
     busy: Boolean,
+    cloudSyncing: Boolean,
+    cloudBackupAvailable: Boolean,
     onRecordRecharge: () -> Unit,
     onShare: () -> Unit,
     onDeleteRechargeGroup: (groupId: String) -> Unit,
@@ -163,19 +166,31 @@ fun MainShellScreen(
                         .graphicsLayer { alpha = if (isSelected) 1f else 0f }
                 ) {
                     when (tab) {
-                        MainTab.Home -> DashboardScreen(
-                            dashboard = dashboard,
-                            onRecordRecharge = onRecordRecharge,
-                            onShare = onShare,
-                            embedded = true,
-                        )
-                        MainTab.History -> HistoryScreen(
-                            entries = entries,
-                            currencySymbol = dashboard?.currencySymbol ?: "Rs.",
-                            busy = busy,
-                            onDeleteRechargeGroup = onDeleteRechargeGroup,
-                            embedded = true,
-                        )
+                        MainTab.Home -> CloudRefreshableTab(
+                            enabled = cloudBackupAvailable && settings.supportId.isNotBlank(),
+                            isRefreshing = cloudSyncing,
+                            onRefresh = onSyncCloud,
+                        ) {
+                            DashboardScreen(
+                                dashboard = dashboard,
+                                onRecordRecharge = onRecordRecharge,
+                                onShare = onShare,
+                                embedded = true,
+                            )
+                        }
+                        MainTab.History -> CloudRefreshableTab(
+                            enabled = cloudBackupAvailable && settings.supportId.isNotBlank(),
+                            isRefreshing = cloudSyncing,
+                            onRefresh = onSyncCloud,
+                        ) {
+                            HistoryScreen(
+                                entries = entries,
+                                currencySymbol = dashboard?.currencySymbol ?: "Rs.",
+                                busy = busy,
+                                onDeleteRechargeGroup = onDeleteRechargeGroup,
+                                embedded = true,
+                            )
+                        }
                         MainTab.Settings -> SettingsScreen(
                             settings = settings,
                             members = members,
@@ -212,5 +227,29 @@ fun MainShellScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CloudRefreshableTab(
+    enabled: Boolean,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxSize()) {
+            content()
+        }
+        return
+    }
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize(),
+    ) {
+        content()
     }
 }

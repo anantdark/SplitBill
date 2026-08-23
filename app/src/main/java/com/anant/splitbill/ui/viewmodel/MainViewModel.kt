@@ -87,6 +87,9 @@ class MainViewModel(
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    private val _cloudSyncing = MutableStateFlow(false)
+    val cloudSyncing: StateFlow<Boolean> = _cloudSyncing.asStateFlow()
+
     private val _showEasterEgg = MutableStateFlow(false)
     val showEasterEgg: StateFlow<Boolean> = _showEasterEgg.asStateFlow()
 
@@ -414,30 +417,35 @@ class MainViewModel(
     fun syncCloudBackup() {
         viewModelScope.launch {
             _busy.value = true
-            backupManager.syncCloud()
-                .onSuccess { result ->
-                    if (result.newlyDeletedEntries.isNotEmpty()) {
-                        backupManager.markDeletionsNotified(
-                            result.newlyDeletedEntries.map { it.id }
-                        )
-                    }
-                    _userMessage.value = when {
-                        result.newlyDeletedEntries.isNotEmpty() -> {
-                            val n = result.newlyDeletedEntries
-                                .map { it.groupId }
-                                .distinct()
-                                .size
-                            "Synced — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+            _cloudSyncing.value = true
+            try {
+                backupManager.syncCloud()
+                    .onSuccess { result ->
+                        if (result.newlyDeletedEntries.isNotEmpty()) {
+                            backupManager.markDeletionsNotified(
+                                result.newlyDeletedEntries.map { it.id }
+                            )
                         }
-                        result.newEntries.isNotEmpty() -> {
-                            val groups = result.newEntries.map { it.groupId }.distinct().size
-                            "Synced — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                        _userMessage.value = when {
+                            result.newlyDeletedEntries.isNotEmpty() -> {
+                                val n = result.newlyDeletedEntries
+                                    .map { it.groupId }
+                                    .distinct()
+                                    .size
+                                "Synced — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+                            }
+                            result.newEntries.isNotEmpty() -> {
+                                val groups = result.newEntries.map { it.groupId }.distinct().size
+                                "Synced — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                            }
+                            else -> "Cloud synced (${result.recordCount} records)"
                         }
-                        else -> "Cloud synced (${result.recordCount} records)"
                     }
-                }
-                .onFailure { e -> _userMessage.value = e.message ?: "Cloud sync failed" }
-            _busy.value = false
+                    .onFailure { e -> _userMessage.value = e.message ?: "Cloud sync failed" }
+            } finally {
+                _busy.value = false
+                _cloudSyncing.value = false
+            }
         }
     }
 
@@ -532,27 +540,32 @@ class MainViewModel(
     fun pullCloudChanges() {
         viewModelScope.launch {
             _busy.value = true
-            backupManager.pullLatestFromCloud()
-                .onSuccess { result ->
-                    if (result.newlyDeletedEntries.isNotEmpty()) {
-                        backupManager.markDeletionsNotified(
-                            result.newlyDeletedEntries.map { it.id }
-                        )
-                    }
-                    _userMessage.value = when {
-                        result.newlyDeletedEntries.isNotEmpty() -> {
-                            val n = result.newlyDeletedEntries.map { it.groupId }.distinct().size
-                            "Pulled — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+            _cloudSyncing.value = true
+            try {
+                backupManager.pullLatestFromCloud()
+                    .onSuccess { result ->
+                        if (result.newlyDeletedEntries.isNotEmpty()) {
+                            backupManager.markDeletionsNotified(
+                                result.newlyDeletedEntries.map { it.id }
+                            )
                         }
-                        result.newEntries.isNotEmpty() -> {
-                            val groups = result.newEntries.map { it.groupId }.distinct().size
-                            "Pulled — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                        _userMessage.value = when {
+                            result.newlyDeletedEntries.isNotEmpty() -> {
+                                val n = result.newlyDeletedEntries.map { it.groupId }.distinct().size
+                                "Pulled — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+                            }
+                            result.newEntries.isNotEmpty() -> {
+                                val groups = result.newEntries.map { it.groupId }.distinct().size
+                                "Pulled — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                            }
+                            else -> "Pulled from cloud — already up to date"
                         }
-                        else -> "Pulled from cloud — already up to date"
                     }
-                }
-                .onFailure { e -> _userMessage.value = e.message ?: "Cloud pull failed" }
-            _busy.value = false
+                    .onFailure { e -> _userMessage.value = e.message ?: "Cloud pull failed" }
+            } finally {
+                _busy.value = false
+                _cloudSyncing.value = false
+            }
         }
     }
 

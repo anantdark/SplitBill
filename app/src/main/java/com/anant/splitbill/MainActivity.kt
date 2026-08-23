@@ -76,6 +76,7 @@ private fun SplitBillNavHost(
     val dashboard by viewModel.dashboard.collectAsStateWithLifecycle()
     val entries by viewModel.entries.collectAsStateWithLifecycle()
     val busy by viewModel.busy.collectAsStateWithLifecycle()
+    val cloudSyncing by viewModel.cloudSyncing.collectAsStateWithLifecycle()
     val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val showEasterEgg by viewModel.showEasterEgg.collectAsStateWithLifecycle()
@@ -179,6 +180,8 @@ private fun SplitBillNavHost(
                     members = dashboard?.members.orEmpty(),
                     versionName = BuildConfig.VERSION_NAME,
                     busy = busy,
+                    cloudSyncing = cloudSyncing,
+                    cloudBackupAvailable = MongoUriVault.isAvailable(),
                     onRecordRecharge = viewModel::openRecordRecharge,
                     onShare = { viewModel.shareBalances(context) },
                     onDeleteRechargeGroup = viewModel::softDeleteRechargeGroup,

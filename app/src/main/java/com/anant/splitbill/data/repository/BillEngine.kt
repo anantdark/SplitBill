@@ -162,7 +162,7 @@ object BillEngine {
         for (m in ordered) {
             val newVal = readings.getValue(m.id)
             val prev = stateMap.getValue(m.id).lastReading
-            val consumption = newVal - prev
+            val consumption = if (prev <= 0.0) 0.0 else newVal - prev
             stateMap[m.id] = stateMap.getValue(m.id).copy(lastReading = newVal)
             working = working.copy(members = ordered.map { stateMap.getValue(it.id) })
             out += EntryEntity(

@@ -114,6 +114,8 @@ class BillEngineTest {
 
         val readings = result.entries.filter { it.type == EntryType.READING }
         assertEquals(2, readings.size)
+        assertEquals(30.0, readings.first { it.memberId == "a" }.consumption!!, 0.001)
+        assertEquals(70.0, readings.first { it.memberId == "b" }.consumption!!, 0.001)
         assertEquals(1, result.entries.count { it.type == EntryType.RECHARGE })
 
         val byId = result.state.byId()
@@ -131,7 +133,7 @@ class BillEngineTest {
         var state = BillEngine.emptyState(members)
 
         // Meters already at 30, 50, 100 — baseline log (no recharge yet).
-        state = BillEngine.recordReadingsAndRecharge(
+        val baselineResult = BillEngine.recordReadingsAndRecharge(
             roomId = "room1",
             members = members,
             current = state,
@@ -139,7 +141,11 @@ class BillEngineTest {
             rechargeMemberId = "a",
             rechargeAmount = 0.0,
             groupId = "g1"
-        ).state
+        )
+        for (reading in baselineResult.entries.filter { it.type == EntryType.READING }) {
+            assertEquals(0.0, reading.consumption!!, 0.001)
+        }
+        state = baselineResult.state
 
         assertEquals(30.0, state.byId().getValue("a").lastReading, 0.001)
         assertEquals(0.0, state.byId().getValue("a").lastReadingBeforeRecharge, 0.001)
