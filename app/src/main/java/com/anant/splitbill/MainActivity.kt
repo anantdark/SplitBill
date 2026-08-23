@@ -150,7 +150,6 @@ private fun SplitBillNavHost(
                 onComplete = viewModel::completeOnboarding,
                 onRestoreLocal = viewModel::restoreFromLocal,
                 onJoinRoom = viewModel::joinRoom,
-                onHeartDoubleTap = viewModel::triggerHeartCelebration
             )
         }
         false -> {
@@ -222,7 +221,7 @@ private fun SplitBillNavHost(
                     onInvite = { viewModel.inviteToRoom(context) },
                     onRegenerateSupportId = viewModel::regenerateSupportId,
                     onMongoOverrides = viewModel::updateMongoOverrides,
-                    onHeartDoubleTap = viewModel::triggerHeartCelebration
+                    onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap
                 )
                 AppDestination.RecordRecharge -> RecordRechargeScreen(
                     members = dashboard?.members.orEmpty(),

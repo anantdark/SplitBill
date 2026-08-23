@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +57,7 @@ import com.anant.splitbill.data.model.MemberBalance
 import com.anant.splitbill.data.model.ThemeMode
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.ui.components.Button
+import com.anant.splitbill.ui.components.ConfettiOverlay
 import com.anant.splitbill.ui.components.CraftedWithLoveCredit
 import com.anant.splitbill.ui.components.RainbowCreditBadge
 import com.anant.splitbill.ui.components.OutlinedButton
@@ -102,12 +105,15 @@ fun SettingsScreen(
     onInvite: () -> Unit = {},
     onRegenerateSupportId: () -> Unit,
     onMongoOverrides: (String, String) -> Unit,
-    onHeartDoubleTap: () -> Unit,
+    /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
+    onHeartDoubleTapHeartbeat: () -> Unit = {},
     embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var packageTapCount by remember { mutableIntStateOf(0) }
     var anantTapCount by remember { mutableIntStateOf(0) }
+    var confettiKey by remember { mutableIntStateOf(0) }
+    var showConfetti by remember { mutableStateOf(false) }
     val developerUnlocked = settings.developerModeUnlocked
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -134,8 +140,16 @@ fun SettingsScreen(
         }
     }
 
+    LaunchedEffect(confettiKey) {
+        if (confettiKey == 0) return@LaunchedEffect
+        showConfetti = true
+        delay(4_000L)
+        showConfetti = false
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             if (!embedded) {
                 TopAppBar(
@@ -525,12 +539,26 @@ fun SettingsScreen(
             }
 
             CraftedWithLoveCredit(
-                onHeartDoubleTap = onHeartDoubleTap,
+                onHeartDoubleTap = {
+                    confettiKey += 1
+                    onHeartDoubleTapHeartbeat()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)
             )
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+        if (showConfetti) {
+            key(confettiKey) {
+                ConfettiOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    durationMillis = 4_000,
+                    grand = true
+                )
+            }
         }
     }
 }

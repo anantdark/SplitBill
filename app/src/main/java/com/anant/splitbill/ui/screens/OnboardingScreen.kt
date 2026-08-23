@@ -58,7 +58,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,9 +82,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.anant.splitbill.R
 import com.anant.splitbill.ui.components.Button
+import com.anant.splitbill.ui.components.ConfettiOverlay
 import com.anant.splitbill.ui.components.CraftedWithLoveCredit
 import com.anant.splitbill.ui.components.OutlinedButton
 import com.anant.splitbill.ui.util.dismissKeyboardOnTap
+import kotlinx.coroutines.delay
 import com.anant.splitbill.ui.util.rememberDismissKeyboard
 
 private enum class OnboardingStep { Welcome, Room, Members, Self, Finish }
@@ -105,10 +110,11 @@ fun OnboardingScreen(
     onComplete: (roomName: String, members: List<String>, defaultMemberName: String) -> Unit,
     onRestoreLocal: (Uri, suspend () -> CharArray?) -> Unit,
     onJoinRoom: (String) -> Unit,
-    onHeartDoubleTap: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var step by remember { mutableStateOf(OnboardingStep.Welcome) }
+    var confettiKey by remember { mutableIntStateOf(0) }
+    var showConfetti by remember { mutableStateOf(false) }
     var roomName by remember { mutableStateOf("") }
     val members = remember { mutableStateListOf<String>() }
     var memberInput by remember { mutableStateOf("") }
@@ -131,8 +137,16 @@ fun OnboardingScreen(
 
     val showBottomBar = step != OnboardingStep.Welcome
 
+    LaunchedEffect(confettiKey) {
+        if (confettiKey == 0) return@LaunchedEffect
+        showConfetti = true
+        delay(4_000L)
+        showConfetti = false
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         bottomBar = {
             if (showBottomBar) {
                 Surface(tonalElevation = 3.dp, shadowElevation = 8.dp) {
@@ -286,7 +300,7 @@ fun OnboardingScreen(
                         onRestoreFile = {
                             importLauncher.launch(arrayOf("application/json", "*/*"))
                         },
-                        onHeartDoubleTap = onHeartDoubleTap
+                        onHeartDoubleTap = { confettiKey += 1 }
                     )
                 }
                 OnboardingStep.Room -> {
@@ -496,6 +510,17 @@ fun OnboardingScreen(
                         )
                     }
                 }
+            }
+        }
+    }
+
+        if (showConfetti) {
+            key(confettiKey) {
+                ConfettiOverlay(
+                    modifier = Modifier.fillMaxSize(),
+                    durationMillis = 4_000,
+                    grand = true
+                )
             }
         }
     }

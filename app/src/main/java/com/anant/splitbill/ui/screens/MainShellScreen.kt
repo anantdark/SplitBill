@@ -85,7 +85,7 @@ fun MainShellScreen(
     onInvite: () -> Unit,
     onRegenerateSupportId: () -> Unit,
     onMongoOverrides: (String, String) -> Unit,
-    onHeartDoubleTap: () -> Unit,
+    onHeartDoubleTapHeartbeat: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dismissKeyboard = rememberDismissKeyboard()
@@ -205,7 +205,7 @@ fun MainShellScreen(
                             onInvite = onInvite,
                             onRegenerateSupportId = onRegenerateSupportId,
                             onMongoOverrides = onMongoOverrides,
-                            onHeartDoubleTap = onHeartDoubleTap,
+                            onHeartDoubleTapHeartbeat = onHeartDoubleTapHeartbeat,
                             embedded = true,
                         )
                     }

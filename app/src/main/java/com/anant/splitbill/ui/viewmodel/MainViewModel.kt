@@ -34,8 +34,10 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 sealed class AppDestination {
     /** Bottom-nav host (Home / History / Settings). */
@@ -765,6 +767,35 @@ class MainViewModel(
 
     fun triggerHeartCelebration() {
         _showEasterEgg.value = true
+    }
+
+    /**
+     * Easter egg: Settings “crafted with ♥” double-tap. Always tries a Sentry heartbeat
+     * (even if crash reporting is off); ignores the once-per-day gate so the tap pulses.
+     */
+    fun sendHeartbeatFromLoveTap() {
+        viewModelScope.launch {
+            sendHeartbeatInternal(force = true)
+        }
+    }
+
+    private suspend fun sendHeartbeatInternal(force: Boolean = false) {
+        val current = settingsRepository.current()
+        val roomCount = runCatching { repository.roomCount() }.getOrDefault(0)
+        val entryCount = runCatching { repository.totalEntryCount() }.getOrDefault(0)
+        val info = HeartbeatInfo(
+            roomCount = roomCount,
+            entryCount = entryCount,
+            isDeveloper = current.developerModeUnlocked,
+        )
+        val today = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString()
+        val kind = if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY
+        val sent = withContext(Dispatchers.IO) {
+            CrashReporter.sendHeartbeat(info, kind)
+        }
+        if (sent) {
+            settingsRepository.markHeartbeatSent(today)
+        }
     }
 
     fun markEasterEggDiscovered() {
