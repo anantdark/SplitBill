@@ -2,6 +2,7 @@ package com.anant.splitbill.ui.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -795,6 +796,9 @@ class MainViewModel(
         }
         if (sent) {
             settingsRepository.markHeartbeatSent(today)
+            Log.i("SplitBillHeartbeat", "love-tap pulse ok (${kind.logMessage})")
+        } else {
+            Log.w("SplitBillHeartbeat", "love-tap pulse failed (${kind.logMessage})")
         }
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -147,34 +148,20 @@ fun SettingsScreen(
         showConfetti = false
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            if (!embedded) {
-                TopAppBar(
-                    title = { Text("Settings") },
-                    navigationIcon = {
-                        if (onBack != null) {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                            }
-                        }
-                    }
-                )
-            }
-        }
-    ) { padding ->
+    val scrollState = rememberScrollState()
+    val body: @Composable (PaddingValues) -> Unit = { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(horizontal = 16.dp)
                 .dismissKeyboardOnTap(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(4.dp))
+            if (!embedded) {
+                Spacer(modifier = Modifier.height(4.dp))
+            }
             SettingsSection("Appearance") {
                 ThemeMode.entries.forEach { mode ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -550,6 +537,27 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (embedded) {
+            body(PaddingValues(0.dp))
+        } else {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                topBar = {
+                    TopAppBar(
+                        title = { Text("Settings") },
+                        navigationIcon = {
+                            if (onBack != null) {
+                                IconButton(onClick = onBack) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                }
+                            }
+                        }
+                    )
+                }
+            ) { padding -> body(padding) }
+        }
 
         if (showConfetti) {
             key(confettiKey) {

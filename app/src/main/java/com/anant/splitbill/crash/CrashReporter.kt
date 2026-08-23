@@ -66,13 +66,18 @@ object CrashReporter {
     private var reportingEnabled: Boolean = true
 
     fun init(app: Application, enabled: Boolean, supportId: String) {
-        if (BuildConfig.IS_FDROID) return
-        if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
+        if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) {
+            Log.w(TAG, "Sentry init skipped: empty DSN blob")
+            return
+        }
         val dsn = MongoUriVault.decode(
             BuildConfig.SENTRY_DSN_BLOB,
             BuildConfig.SENTRY_DSN_MASK,
         ).trim()
-        if (dsn.isEmpty()) return
+        if (dsn.isEmpty()) {
+            Log.w(TAG, "Sentry init skipped: DSN decode failed")
+            return
+        }
 
         reportingEnabled = enabled
         SentryAndroid.init(app) { options ->
@@ -106,6 +111,7 @@ object CrashReporter {
             Sentry.setUser(User().apply { id = supportId })
         }
         ready.set(true)
+        Log.i(TAG, "Sentry ready (crashReporting=$enabled, fdroid=${BuildConfig.IS_FDROID})")
     }
 
     fun setReportingEnabled(enabled: Boolean) {
@@ -131,10 +137,14 @@ object CrashReporter {
     /**
      * Anonymous heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app
      * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
-     * Callers gate once-per-day / once-per-update. Returns true if the check-in was sent.
+     * Callers gate once-per-day / once-per-update. Returns true if the pulse was flushed.
+     * Sent regardless of [reportingEnabled] — heartbeats are fleet telemetry, not crash reports.
      */
     fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
-        if (!ready.get()) return false
+        if (!ready.get()) {
+            Log.w(TAG, "heartbeat skipped (${kind.logMessage}): Sentry not initialized")
+            return false
+        }
         return runCatching {
             val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
                 release =
@@ -153,9 +163,18 @@ object CrashReporter {
             val checkInId = Sentry.captureCheckIn(checkIn)
             emitFleetPulse(info, message = kind.logMessage)
             Sentry.flush(5_000L)
-            checkInId != SentryId.EMPTY_ID
+            val checkInOk = checkInId != SentryId.EMPTY_ID
+            if (checkInOk) {
+                Log.i(TAG, "heartbeat sent: ${kind.logMessage}")
+            } else {
+                Log.w(
+                    TAG,
+                    "heartbeat check-in empty for ${kind.logMessage}; logs/metrics flushed",
+                )
+            }
+            true
         }.onFailure { e ->
-            Log.e(TAG, "heartbeat failed", e)
+            Log.e(TAG, "heartbeat failed (${kind.logMessage})", e)
         }.getOrDefault(false)
     }
 
