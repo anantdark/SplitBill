@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FAQ — SplitBill</title>
+  <meta name="description" content="Frequently asked questions about SplitBill: room setup, splitting, cloud sync, backups, and troubleshooting." />
+  <link rel="canonical" href="https://anantdark.github.io/SplitBill/faq.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">SplitBill</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="docs/">Guide</a>
+      <a href="faq.html" aria-current="page">FAQ</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="#download" class="hide-sm">Download</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout docs-layout-wide">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">FAQ</p>
+      <a href="#room">Room &amp; members</a>
+      <a href="#splitting">Splitting</a>
+      <a href="#sync">Cloud sync</a>
+      <a href="#backup">Backups</a>
+      <a href="#updates">Updates</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Answers</p>
+      <h1>Frequently asked<br /><em>questions</em></h1>
+      <p class="lede">Short answers. For a walkthrough, see the <a href="docs/">beginner guide</a>.</p>
+
+      <section id="room">
+        <h2>Room &amp; members</h2>
+        <dl class="faq">
+          <dt>What is a Room ID?</dt>
+          <dd>Your room’s sync key (Support ID). Everyone who shares the meter should join the same Room ID so logs and balances match.</dd>
+          <dt>Can I change member names later?</dt>
+          <dd>Member names are set during setup. For a clean rename, export a backup, edit offline, or recreate the room — avoid deleting members mid-history unless you understand balance impact.</dd>
+          <dt>One phone or many?</dt>
+          <dd>One phone works fine without cloud sync. Multiple phones need the same Room ID and cloud sync enabled on each device.</dd>
+        </dl>
+      </section>
+
+      <section id="splitting">
+        <h2>Splitting &amp; balances</h2>
+        <dl class="faq">
+          <dt>How does splitting work?</dt>
+          <dd>Each log compares meter readings to compute usage since the last entry. Cost is allocated by usage share among members. Prepaid balances track who has paid ahead.</dd>
+          <dt>Who recharges next?</dt>
+          <dd>The member with the lowest prepaid balance is flagged to top up the meter next — usually fair when everyone shares usage evenly over time.</dd>
+          <dt>Wrong meter reading?</dt>
+          <dd>Open History, edit or soft-delete the bad entry, then log again. Recent mistakes are easier to fix before more logs stack on top.</dd>
+        </dl>
+      </section>
+
+      <section id="sync">
+        <h2>Cloud sync</h2>
+        <dl class="faq">
+          <dt>Is cloud sync encrypted?</dt>
+          <dd>Cloud payloads are gzip-compressed JSON, not encrypted. Only enable sync if you accept that trade-off. Local file exports can use AES-GCM with a password.</dd>
+          <dt>Why didn’t my roommate’s log appear?</dt>
+          <dd>Check both phones use the same Room ID, cloud sync is on, and the device has network access. Pull manually from Settings if needed.</dd>
+        </dl>
+      </section>
+
+      <section id="backup">
+        <h2>Backups</h2>
+        <dl class="faq">
+          <dt>Is local backup encrypted?</dt>
+          <dd>Only if you set a backup password — then AES-256-GCM. Without a password, exports are gzip-compressed JSON. See <a href="encryption.html">Encryption</a>.</dd>
+          <dt>I forgot my backup password</dt>
+          <dd>There is no recovery. Encrypted backups cannot be opened without the password.</dd>
+        </dl>
+      </section>
+
+      <section id="updates">
+        <h2>Updates</h2>
+        <dl class="faq">
+          <dt>F-Droid vs GitHub APK?</dt>
+          <dd>Same codebase, different signing keys. Don’t install one over the other expecting a seamless update — pick a channel and stay on it.</dd>
+          <dt>How do GitHub updates work?</dt>
+          <dd>Update checks open the APK download in your browser. SplitBill does not sideload installers itself.</dd>
+        </dl>
+      </section>
+
+      <p class="docs-end" id="download">
+        <a class="btn primary" href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">Download APK</a>
+        · <a href="privacy.html">Privacy</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">SplitBill</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/anantdark/SplitBill">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

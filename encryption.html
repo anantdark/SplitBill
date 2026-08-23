@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Encryption — SplitBill</title>
+  <meta name="description" content="How SplitBill encrypts local backup files with AES-256-GCM and PBKDF2 when you set a backup password." />
+  <link rel="canonical" href="https://anantdark.github.io/SplitBill/encryption.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">SplitBill</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="docs/">Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="encryption.html" aria-current="page">Encryption</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Security</p>
+      <a href="#overview">Overview</a>
+      <a href="#cipher">AES-256-GCM</a>
+      <a href="#kdf">Key derivation</a>
+      <a href="#cloud">Cloud sync</a>
+      <a href="#password">Backup password</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Security</p>
+      <h1>Encryption</h1>
+      <p class="lede">
+        Local file exports can be sealed on your device with AES-256-GCM before you save them.
+        Cloud sync uses compression only — not encryption.
+      </p>
+
+      <section id="overview">
+        <h2>Overview</h2>
+        <ul>
+          <li><strong>Local export (with password):</strong> AES-256-GCM authenticated encryption</li>
+          <li><strong>Key derivation:</strong> PBKDF2-HMAC-SHA256, 120,000 iterations</li>
+          <li><strong>Salt:</strong> 128-bit random, per backup</li>
+          <li><strong>Nonce (IV):</strong> 96-bit random, per backup</li>
+          <li><strong>Compression:</strong> gzip of JSON before encryption</li>
+          <li><strong>Cloud sync:</strong> gzip only (<code>enc=none</code>) — not encrypted</li>
+        </ul>
+      </section>
+
+      <section id="cipher">
+        <h2>AES-256-GCM</h2>
+        <p>
+          AES-256 is the symmetric cipher used for local backup files when you set a password.
+          GCM adds integrity: if ciphertext is tampered with, decryption fails instead of
+          returning corrupted data.
+        </p>
+      </section>
+
+      <section id="kdf">
+        <h2>Key derivation</h2>
+        <p>
+          Your backup password is never stored in the export file. PBKDF2-HMAC-SHA256 stretches
+          the password with the per-backup salt to derive a 256-bit AES key. 120,000 iterations
+          slow brute-force attempts on stolen backup files.
+        </p>
+      </section>
+
+      <section id="cloud">
+        <h2>Cloud sync vs local export</h2>
+        <p>
+          Cloud sync uploads gzip-compressed room JSON for multi-device convenience. That
+          payload is readable by anyone with your Room ID and access to the sync service.
+          Use a password-protected <strong>local export</strong> when you need an encrypted
+          offline backup.
+        </p>
+      </section>
+
+      <section id="password">
+        <h2>Backup password on device</h2>
+        <p>
+          When you set a backup password in the app, it is stored sealed in Android Keystore
+          (AES-GCM) so exports can be re-encrypted without prompting every time. Forgetting
+          the password means encrypted backups cannot be opened — there is no recovery.
+        </p>
+      </section>
+
+      <p class="docs-end">
+        <a href="privacy.html">Privacy</a> ·
+        <a href="faq.html">FAQ</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">SplitBill</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="https://github.com/anantdark/SplitBill">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

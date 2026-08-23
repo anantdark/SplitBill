@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy — SplitBill</title>
+  <meta name="description" content="What SplitBill stores on your device, what is sent for cloud sync, optional crash reports, and permissions." />
+  <link rel="canonical" href="https://anantdark.github.io/SplitBill/privacy.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="./">SplitBill</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="privacy.html" aria-current="page">Privacy</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Privacy</p>
+      <a href="#device">On your device</a>
+      <a href="#cloud">Cloud sync</a>
+      <a href="#network">Other network</a>
+      <a href="#sentry">Crash reports</a>
+      <a href="#permissions">Permissions</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Data</p>
+      <h1>Privacy</h1>
+      <p class="lede">
+        SplitBill is designed so meter logs and balances live on your phone by default.
+        Network calls only happen for features you enable. There is no SplitBill account.
+      </p>
+
+      <section id="device">
+        <h2>Stored on your device</h2>
+        <ul>
+          <li>Room name, member names, and your selected member</li>
+          <li>Meter readings, recharge amounts, usage history, and computed balances</li>
+          <li>Room ID (Support ID) used for sync and crash-report correlation</li>
+          <li>Theme preferences and sync/update settings</li>
+          <li>Optional local JSON backups (optionally password-encrypted)</li>
+          <li>Backup password sealed in Android Keystore when set</li>
+        </ul>
+        <p>Uninstalling removes local data unless you kept an export file.</p>
+      </section>
+
+      <section id="cloud">
+        <h2>Optional cloud sync</h2>
+        <p>
+          When enabled, SplitBill uploads <strong>gzip-compressed JSON</strong> room data keyed
+          by your Room ID to a cloud backup proxy (MongoDB backend). Payloads are
+          <strong>not encrypted</strong> before upload — only compressed. Off by default until
+          you turn on cloud sync in Settings.
+        </p>
+        <p>
+          Anyone with your Room ID could theoretically fetch the same payload from the sync
+          service. Treat the Room ID like a shared secret for your meter room.
+        </p>
+      </section>
+
+      <section id="network">
+        <h2>Other network use</h2>
+        <ul>
+          <li><strong>GitHub API</strong> — optional update checks on GitHub builds</li>
+          <li><strong>APK download</strong> — opens GitHub Releases in your browser when you update</li>
+        </ul>
+        <p>No ads. No analytics SDK beyond optional crash reporting on GitHub builds.</p>
+      </section>
+
+      <section id="sentry">
+        <h2>Crash reports (optional)</h2>
+        <p>
+          GitHub flavor builds can send anonymous crash reports to Sentry when you opt in.
+          Reports include stack traces and your Room ID as user context — not member balances
+          or meter readings by design. F-Droid builds disable Sentry entirely.
+        </p>
+      </section>
+
+      <section id="permissions">
+        <h2>Permissions</h2>
+        <ul>
+          <li><strong>Internet</strong> — cloud sync and update checks</li>
+          <li><strong>Notifications</strong> — sync alerts when new room logs arrive</li>
+          <li><strong>Boot completed</strong> — reschedule background sync after reboot</li>
+        </ul>
+      </section>
+
+      <p class="docs-end">
+        Local backup encryption: <a href="encryption.html">Encryption</a> ·
+        <a href="faq.html">FAQ</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="./">SplitBill</a>
+    <div class="footer-links">
+      <a href="docs/">Guide</a>
+      <a href="encryption.html">Encryption</a>
+      <a href="https://github.com/anantdark/SplitBill">GitHub</a>
+    </div>
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>

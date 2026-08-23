@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guide — SplitBill</title>
+  <meta name="description" content="Beginner guide to installing SplitBill, setting up a meter room, logging recharges, and syncing across devices." />
+  <link rel="canonical" href="https://anantdark.github.io/SplitBill/docs/" />
+  <link rel="icon" href="../assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../styles.css" />
+</head>
+<body class="docs-body">
+  <div class="noise" aria-hidden="true"></div>
+
+  <header class="site-header">
+    <a class="brand" href="../">SplitBill</a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <nav id="site-nav">
+      <a href="../#download">Download</a>
+      <a href="./" aria-current="page">Guide</a>
+      <a href="../faq.html">FAQ</a>
+      <a href="https://github.com/anantdark/SplitBill" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <div class="docs-layout">
+    <aside class="docs-nav">
+      <p class="docs-nav-title">Guide</p>
+      <a href="#what">What is SplitBill?</a>
+      <a href="#install">Install</a>
+      <a href="#first">First-run setup</a>
+      <a href="#log">Log a recharge</a>
+      <a href="#sync">Cloud sync</a>
+      <a href="#backup">Backups</a>
+      <a href="#widget">Widget</a>
+      <a href="#tips">Tips</a>
+    </aside>
+
+    <article class="docs-main">
+      <p class="eyebrow">Beginner guide</p>
+      <h1>From install to<br /><em>first recharge log</em></h1>
+      <p class="lede">
+        Follow this once. After that you’ll mostly log readings after every top-up and
+        glance at balances on the home tab.
+      </p>
+
+      <section id="what">
+        <h2>What is SplitBill?</h2>
+        <p>
+          SplitBill is a free, open-source Android app for households that share a
+          <strong>prepaid electricity meter</strong>. After each recharge you log the meter
+          reading and amount paid. The app splits costs by usage, tracks prepaid balances per
+          member, and shows <strong>who should top up next</strong>.
+        </p>
+        <p>
+          Multiple phones can share one meter room via a <strong>Room ID</strong> and optional
+          cloud sync.
+        </p>
+      </section>
+
+      <section id="install">
+        <h2>Install</h2>
+        <p>Pick one channel and stick to it (signing keys differ):</p>
+        <ul>
+          <li><a href="https://f-droid.org/en/packages/com.anant.splitbill/">F-Droid</a></li>
+          <li><a href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">GitHub APK</a> (arm64)</li>
+        </ul>
+        <p>Needs <strong>Android 10</strong> or newer.</p>
+      </section>
+
+      <section id="first">
+        <h2>First-run setup</h2>
+        <ol>
+          <li>Open SplitBill → <strong>Get started</strong> for a new room, or join with a Room ID.</li>
+          <li>Name the room (e.g. “Flat 3B meter”).</li>
+          <li>Add every member who shares the meter.</li>
+          <li>Pick which member you are on this phone.</li>
+          <li>Share the Room ID from Settings so others can join the same room.</li>
+          <li>Land on <strong>Home</strong> — prepaid balances and next top-up hint.</li>
+        </ol>
+        <p>Already have a backup? Use <strong>Restore from file</strong> on the welcome screen.</p>
+      </section>
+
+      <section id="log">
+        <h2>Log a recharge</h2>
+        <ol>
+          <li>After topping up the prepaid meter, tap the log action on Home.</li>
+          <li>Enter the current <strong>meter reading</strong> (kWh) and <strong>recharge amount</strong>.</li>
+          <li>Confirm. Balances update for all members based on usage since the last log.</li>
+          <li>The member with the lowest balance is marked to recharge next.</li>
+        </ol>
+        <p>Edit or soft-delete entries from the History tab if you made a mistake.</p>
+      </section>
+
+      <section id="sync">
+        <h2>Cloud sync</h2>
+        <p>
+          Under <strong>Settings → Cloud sync</strong>, enable sync to pull and push room data
+          across devices. Sync runs when you open the app and periodically in the background.
+        </p>
+        <p>
+          Cloud payloads are <strong>gzip-compressed JSON</strong> keyed by your Room ID
+          (Support ID). They are not encrypted on the wire — see
+          <a href="../privacy.html">Privacy</a>. Turn sync off if you only use one phone.
+        </p>
+      </section>
+
+      <section id="backup">
+        <h2>Backups</h2>
+        <p>
+          Export a local JSON backup anytime from Settings. Set an optional backup password
+          to seal the file with AES-256-GCM before saving — details on the
+          <a href="../encryption.html">encryption</a> page.
+        </p>
+        <p>Import restores the full room on this device.</p>
+      </section>
+
+      <section id="widget">
+        <h2>Home screen widget</h2>
+        <p>
+          Add the <strong>Meter balances</strong> widget from your launcher. It shows member
+          balances without opening the app. Set up a room first — the widget reads local data.
+        </p>
+      </section>
+
+      <section id="tips">
+        <h2>Tips</h2>
+        <ul>
+          <li>Log immediately after every recharge so usage deltas stay accurate.</li>
+          <li>Share the Room ID, not your personal name — it’s the sync key for the room.</li>
+          <li>Use the share action to send balance summaries or an invite with the download link.</li>
+          <li>Enable cloud sync only if multiple people log from different phones.</li>
+          <li>Crash reports are optional on GitHub builds — off by default on F-Droid.</li>
+        </ul>
+      </section>
+
+      <p class="docs-end">
+        More answers in the <a href="../faq.html">FAQ</a> ·
+        <a href="../privacy.html">Privacy</a> ·
+        <a href="https://github.com/anantdark/SplitBill">GitHub</a>
+      </p>
+    </article>
+  </div>
+
+  <footer class="site-footer">
+    <a class="brand" href="../">SplitBill</a>
+    <div class="footer-links">
+      <a href="../">Home</a>
+      <a href="../faq.html">FAQ</a>
+      <a href="../privacy.html">Privacy</a>
+    </div>
+  </footer>
+  <script src="../main.js"></script>
+</body>
+</html>
