@@ -8,15 +8,12 @@ Prepaid electricity meter tracking for shared flats. Log readings and recharges,
 
 **Website:** [anantdark.github.io/SplitBill](https://anantdark.github.io/SplitBill/) — guide, FAQ, privacy, download
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/en/packages/com.anant.splitbill/)
-
 ## Download
 
 - [GitHub APK](https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk) (arm64)
-- [F-Droid](https://f-droid.org/en/packages/com.anant.splitbill/)
 - [All releases](https://github.com/anantdark/SplitBill/releases)
 
-Android 10+ required.
+Android 10+ required. F-Droid listing is planned but not available yet.
 
 ## Docs
 
