@@ -66,6 +66,7 @@ private const val DEVELOPER_UNLOCK_TAPS = 31
 private const val DEVELOPER_HINT_START = DEVELOPER_UNLOCK_TAPS - 5
 private const val GITHUB_URL = "https://github.com/anantdark"
 private const val ANANT_SITE_URL = "https://anantdark.github.io"
+private const val SPLITBILL_SITE_URL = "https://anantdark.github.io/SplitBill/"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -379,6 +380,7 @@ fun SettingsScreen(
                     }
                 )
                 AboutLinkRow("Created by", "Anant", ANANT_SITE_URL)
+                AboutLinkRow("Website", "anantdark.github.io/SplitBill", SPLITBILL_SITE_URL)
                 AboutLinkRow("GitHub", "github.com/anantdark", GITHUB_URL)
             }
 
