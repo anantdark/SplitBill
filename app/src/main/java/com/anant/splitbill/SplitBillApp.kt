@@ -3,6 +3,8 @@ package com.anant.splitbill
 import android.app.Application
 import com.anant.splitbill.crash.CrashReporter
 import com.anant.splitbill.crash.HeartbeatInfo
+import com.anant.splitbill.crash.HeartbeatKind
+import com.anant.splitbill.crash.HeartbeatScheduler
 import com.anant.splitbill.data.backup.BackupManager
 import com.anant.splitbill.data.backup.crypto.BackupPasswordStore
 import com.anant.splitbill.data.backup.mongo.MongoBackupRepository
@@ -108,6 +110,7 @@ class SplitBillApp : Application() {
         appScope.launch {
             maybeSendUpdateHeartbeat()
         }
+        HeartbeatScheduler.schedule(this)
     }
 
     /**
@@ -166,7 +169,7 @@ class SplitBillApp : Application() {
         if (previous == null) {
             settingsRepository.setLastKnownVersionCode(current)
         } else if (current > previous) {
-            if (CrashReporter.sendDailyHeartbeat(info)) {
+            if (CrashReporter.sendHeartbeat(info, HeartbeatKind.UPDATE)) {
                 settingsRepository.setLastKnownVersionCode(current)
             }
         } else if (current != previous) {

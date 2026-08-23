@@ -6,11 +6,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,10 +39,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ElectricMeter
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Home
@@ -65,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -72,6 +77,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.anant.splitbill.R
 import com.anant.splitbill.ui.components.Button
 import com.anant.splitbill.ui.components.CraftedWithLoveCredit
 import com.anant.splitbill.ui.components.OutlinedButton
@@ -79,6 +85,8 @@ import com.anant.splitbill.ui.util.dismissKeyboardOnTap
 import com.anant.splitbill.ui.util.rememberDismissKeyboard
 
 private enum class OnboardingStep { Welcome, Room, Members, Self, Finish }
+
+private enum class WelcomeExistingOption { JoinRoom, RestoreFile }
 
 private val MemberAccentPalette = listOf(
     Color(0xFF0F6B5C),
@@ -96,7 +104,6 @@ fun OnboardingScreen(
     cloudRestoreAvailable: Boolean,
     onComplete: (roomName: String, members: List<String>, defaultMemberName: String) -> Unit,
     onRestoreLocal: (Uri, suspend () -> CharArray?) -> Unit,
-    onRestoreCloud: () -> Unit,
     onJoinRoom: (String) -> Unit,
     onHeartDoubleTap: () -> Unit,
     modifier: Modifier = Modifier
@@ -276,7 +283,6 @@ fun OnboardingScreen(
                         cloudRestoreAvailable = cloudRestoreAvailable,
                         onGetStarted = { step = OnboardingStep.Room },
                         onJoinRoom = { onJoinRoom(joinRoomId) },
-                        onRestoreCloud = onRestoreCloud,
                         onRestoreFile = {
                             importLauncher.launch(arrayOf("application/json", "*/*"))
                         },
@@ -503,12 +509,16 @@ private fun WelcomeStep(
     cloudRestoreAvailable: Boolean,
     onGetStarted: () -> Unit,
     onJoinRoom: () -> Unit,
-    onRestoreCloud: () -> Unit,
     onRestoreFile: () -> Unit,
     onHeartDoubleTap: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
     val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    var expandedOption by remember { mutableStateOf<WelcomeExistingOption?>(null) }
+
+    fun toggleOption(option: WelcomeExistingOption) {
+        expandedOption = if (expandedOption == option) null else option
+    }
 
     Box(
         modifier = Modifier
@@ -539,11 +549,10 @@ private fun WelcomeStep(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Filled.ElectricMeter,
+                Image(
+                    painter = painterResource(R.drawable.ic_splitbill_logo),
                     contentDescription = null,
-                    tint = primary,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(52.dp)
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
@@ -569,7 +578,7 @@ private fun WelcomeStep(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 Text(
-                    text = "Get started",
+                    text = "Start fresh",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -602,42 +611,14 @@ private fun WelcomeStep(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .padding(18.dp)
+        WelcomeExpandableOption(
+            icon = Icons.Filled.GroupAdd,
+            title = "Already have a room?",
+            subtitle = "Paste the Room ID shared with you.",
+            expanded = expandedOption == WelcomeExistingOption.JoinRoom,
+            enabled = !isRestoring,
+            onToggle = { toggleOption(WelcomeExistingOption.JoinRoom) },
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(primary.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.GroupAdd,
-                        contentDescription = null,
-                        tint = primary
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        text = "Already have a room?",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "Paste the Room ID shared with you.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = joinRoomId,
                 onValueChange = onJoinRoomIdChange,
@@ -675,78 +656,108 @@ private fun WelcomeStep(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        if (cloudRestoreAvailable) {
-            WelcomeSecondaryAction(
-                icon = Icons.Outlined.CloudDownload,
-                title = "Restore this device",
-                subtitle = "Pull the cloud backup for this phone's Room ID",
-                enabled = !isRestoring,
-                onClick = onRestoreCloud
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        WelcomeSecondaryAction(
+        WelcomeExpandableOption(
             icon = Icons.Outlined.FolderOpen,
             title = "Restore from file",
             subtitle = "Import a SplitBill backup JSON",
+            expanded = expandedOption == WelcomeExistingOption.RestoreFile,
             enabled = !isRestoring,
-            onClick = onRestoreFile
-        )
+            onToggle = { toggleOption(WelcomeExistingOption.RestoreFile) },
+        ) {
+            Button(
+                onClick = onRestoreFile,
+                enabled = !isRestoring,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text("Choose backup file")
+            }
+        }
 
         Spacer(modifier = Modifier.height(36.dp))
-        CraftedWithLoveCredit(onHeartDoubleTap = onHeartDoubleTap)
+        CraftedWithLoveCredit(
+            onHeartDoubleTap = onHeartDoubleTap,
+            modifier = Modifier.fillMaxWidth()
+        )
         Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WelcomeSecondaryAction(
+private fun WelcomeExpandableOption(
     icon: ImageVector,
     title: String,
     subtitle: String,
+    expanded: Boolean,
     enabled: Boolean,
-    onClick: () -> Unit,
+    onToggle: () -> Unit,
+    expandedContent: @Composable () -> Unit,
 ) {
     val dismiss = rememberDismissKeyboard()
+    val primary = MaterialTheme.colorScheme.primary
     Surface(
-        onClick = { dismiss(); onClick() },
-        enabled = enabled,
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = enabled) {
+                        dismiss()
+                        onToggle()
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(primary.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
                 )
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(modifier = Modifier.padding(top = 16.dp)) {
+                    expandedContent()
+                }
+            }
         }
     }
 }

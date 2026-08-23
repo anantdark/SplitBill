@@ -12,9 +12,12 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 
-// Sentry DSN — set SPLITBILL_SENTRY_DSN_BLOB / MASK in local.properties or leave blank.
+// Sentry DSN — override SPLITBILL_SENTRY_DSN_BLOB / MASK in local.properties to rotate.
 val sentryDsnMaskSeed = localProperties.getProperty("SPLITBILL_SENTRY_DSN_MASK", "splitbill.sentry.v1")
-val sentryDsnBlobEscaped = localProperties.getProperty("SPLITBILL_SENTRY_DSN_BLOB", "")
+val sentryDsnBlobEscaped = localProperties.getProperty(
+    "SPLITBILL_SENTRY_DSN_BLOB",
+    "GwQYGQdYRkMOSBVUX0UWSx1GU0pDCQ1DVVpUDxsRBgxGRUFKF1NARywGQFdYXVsbRVFdQUVIFkcFR14FBxMHGhhCShZLHREcDVwPHxofQ11BU1hVWh9FVVxFS0wbRQc=",
+)
 
 // Cloud backup proxy — same Vercel endpoint + obfuscated API key as FitBuddy.
 // The proxy key only grants read/upsert-by-id (no delete). Atlas creds never ship in the app.

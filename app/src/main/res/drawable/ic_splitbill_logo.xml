@@ -5,35 +5,30 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Meter housing -->
     <path
         android:fillColor="#0F6B5C"
         android:pathData="M40,28h28c8.8,0 16,7.2 16,16v32c0,8.8 -7.2,16 -16,16h-28c-8.8,0 -16,-7.2 -16,-16v-32c0,-8.8 7.2,-16 16,-16z" />
 
-    <!-- Inner bezel -->
     <path
         android:fillColor="#2DD4BF"
         android:pathData="M41,34h26c6.6,0 12,5.4 12,12v26c0,6.6 -5.4,12 -12,12h-26c-6.6,0 -12,-5.4 -12,-12v-26c0,-6.6 5.4,-12 12,-12z" />
 
-    <!-- LCD panel -->
     <path
         android:fillColor="#0B1F1A"
         android:pathData="M38,40h32c4.4,0 8,3.6 8,8v14c0,4.4 -3.6,8 -8,8h-32c-4.4,0 -8,-3.6 -8,-8v-14c0,-4.4 3.6,-8 8,-8z" />
 
-    <!-- Reading segments -->
     <path
         android:fillColor="#99F6E4"
         android:pathData="M38,44h24v3.5h-24zM38,49.5h15v3.5h-15zM55,49.5h17v3.5h-17z" />
 
-    <!-- Split balance bars (unequal shares) -->
     <path
         android:fillColor="#5EEAD4"
         android:pathData="M34,66h26c2.2,0 4,1.8 4,4v4c0,2.2 -1.8,4 -4,4h-26c-2.2,0 -4,-1.8 -4,-4v-4c0,-2.2 1.8,-4 4,-4z" />
+
     <path
         android:fillColor="#D4A03A"
         android:pathData="M62,66h14c2.2,0 4,1.8 4,4v4c0,2.2 -1.8,4 -4,4h-14c-2.2,0 -4,-1.8 -4,-4v-4c0,-2.2 1.8,-4 4,-4z" />
 
-    <!-- Power accent -->
     <path
         android:fillColor="#D4A03A"
         android:pathData="M70,32l6,10h-4.5l2.5,8 -6,-10h4.5z" />

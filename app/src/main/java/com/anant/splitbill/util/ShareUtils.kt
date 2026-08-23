@@ -4,8 +4,9 @@ import android.content.Context
 import android.content.Intent
 
 object ShareUtils {
-    /** GitHub Releases page for SplitBill APKs (same distribution pattern as FitBuddy). */
-    const val APP_DOWNLOAD_URL = "https://github.com/anantdark/SplitBill/releases/latest"
+    /** Stable GitHub APK alias — triggers direct download in most browsers. */
+    const val APP_DOWNLOAD_URL =
+        "https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk"
 
     fun shareText(context: Context, text: String, title: String = "Share balances") {
         val send = Intent(Intent.ACTION_SEND).apply {

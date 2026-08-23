@@ -149,7 +149,6 @@ private fun SplitBillNavHost(
                 cloudRestoreAvailable = MongoUriVault.isAvailable(),
                 onComplete = viewModel::completeOnboarding,
                 onRestoreLocal = viewModel::restoreFromLocal,
-                onRestoreCloud = viewModel::restoreFromCloud,
                 onJoinRoom = viewModel::joinRoom,
                 onHeartDoubleTap = viewModel::triggerHeartCelebration
             )

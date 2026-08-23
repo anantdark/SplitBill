@@ -7,6 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.anant.splitbill.BuildConfig
+import com.anant.splitbill.crash.CrashReporter
+import com.anant.splitbill.crash.HeartbeatInfo
+import com.anant.splitbill.crash.HeartbeatKind
 import com.anant.splitbill.data.backup.BackupErrorMessages
 import com.anant.splitbill.data.backup.BackupImportResult
 import com.anant.splitbill.data.backup.BackupManager
@@ -232,8 +235,11 @@ class MainViewModel(
                         error(BackupErrorMessages.BACKUP_CORRUPT)
                     BackupImportResult.PasswordRequired ->
                         error(BackupErrorMessages.INCORRECT_PASSWORD)
-                    BackupImportResult.Unrecognized ->
+                    BackupImportResult.Unrecognized,
+                    BackupImportResult.NotFound ->
                         error("No cloud room found for that Room ID")
+                    is BackupImportResult.Failed ->
+                        error(result.message)
                 }
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Couldn't join room"
@@ -270,6 +276,9 @@ class MainViewModel(
                     _userMessage.value = BackupErrorMessages.BACKUP_CORRUPT
                 BackupImportResult.Unrecognized ->
                     _userMessage.value = BackupErrorMessages.NOT_VALID_BACKUP
+                BackupImportResult.NotFound,
+                is BackupImportResult.Failed ->
+                    _userMessage.value = BackupErrorMessages.NOT_VALID_BACKUP
             }
             _busy.value = false
         }
@@ -278,6 +287,7 @@ class MainViewModel(
     fun restoreFromCloud() {
         viewModelScope.launch {
             _busy.value = true
+            val roomId = settingsRepository.current().supportId
             when (val result = backupManager.downloadCloud()) {
                 is BackupImportResult.Success -> {
                     val supportId = settingsRepository.ensureSupportId()
@@ -293,10 +303,14 @@ class MainViewModel(
                     _destination.value = destinationAfterSelfCheck()
                     _userMessage.value = "Cloud restore complete (${result.recordCount} records)"
                 }
+                BackupImportResult.NotFound ->
+                    _userMessage.value = BackupErrorMessages.cloudBackupNotFound(roomId)
                 BackupImportResult.WrongPassword ->
                     _userMessage.value = BackupErrorMessages.INCORRECT_PASSWORD
                 BackupImportResult.Corrupt ->
                     _userMessage.value = BackupErrorMessages.BACKUP_CORRUPT
+                is BackupImportResult.Failed ->
+                    _userMessage.value = result.message
                 else ->
                     _userMessage.value = BackupErrorMessages.NOT_VALID_BACKUP
             }
@@ -346,6 +360,13 @@ class MainViewModel(
             _busy.value = true
             runCatching {
                 backupManager.softDeleteRechargeAndSync(roomId, groupId).getOrThrow()
+                val settings = settingsRepository.current()
+                val info = HeartbeatInfo(
+                    roomCount = runCatching { repository.roomCount() }.getOrDefault(0),
+                    entryCount = runCatching { repository.totalEntryCount() }.getOrDefault(0),
+                    isDeveloper = settings.developerModeUnlocked,
+                )
+                CrashReporter.sendHeartbeat(info, HeartbeatKind.DELETE)
                 _userMessage.value = "Recharge marked deleted — others will see it on sync"
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Couldn't delete"

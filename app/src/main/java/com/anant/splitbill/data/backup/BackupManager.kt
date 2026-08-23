@@ -7,6 +7,7 @@ import com.anant.splitbill.data.backup.crypto.BackupFormat
 import com.anant.splitbill.data.backup.crypto.BackupPasswordStore
 import com.anant.splitbill.data.backup.crypto.OpenResult
 import com.anant.splitbill.data.backup.mongo.MongoBackupRepository
+import android.util.Log
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.database.EntryEntity
 import com.anant.splitbill.data.repository.SplitBillRepository
@@ -237,27 +238,38 @@ class BackupManager(
         }
     }
 
-    suspend fun downloadCloud(): BackupImportResult = runCatching {
+    suspend fun downloadCloud(): BackupImportResult {
         if (!MongoUriVault.isAvailable()) return BackupImportResult.Unrecognized
-        val settings = settingsRepository.current()
-        val supportId = settings.supportId.ifBlank { return BackupImportResult.Unrecognized }
-        val doc = mongoRepository.tryDownloadDoc(
-            baseUrl = MongoUriVault.baseUrl(),
-            apiKey = MongoUriVault.resolve(),
-            databaseName = effectiveMongoDbName(settings),
-            collectionName = effectiveMongoCollection(settings),
-            supportId = supportId,
-        ) ?: return BackupImportResult.Unrecognized
-        when (val opened = openCloudPayload(doc.payloadJson)) {
-            is OpenResult.Success -> BackupImportResult.Success(
-                importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
+        return try {
+            val supportId = settingsRepository.current().supportId.ifBlank {
+                settingsRepository.ensureSupportId()
+            }
+            val settings = settingsRepository.current()
+            Log.d(TAG, "downloadCloud: supportId=$supportId")
+            val doc = mongoRepository.tryDownloadDoc(
+                baseUrl = MongoUriVault.baseUrl(),
+                apiKey = MongoUriVault.resolve(),
+                databaseName = effectiveMongoDbName(settings),
+                collectionName = effectiveMongoCollection(settings),
+                supportId = supportId,
+            ) ?: run {
+                Log.w(TAG, "downloadCloud: no cloud backup for supportId=$supportId")
+                return BackupImportResult.NotFound
+            }
+            when (val opened = openCloudPayload(doc.payloadJson)) {
+                is OpenResult.Success -> BackupImportResult.Success(
+                    importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
+                )
+                OpenResult.WrongPassword -> BackupImportResult.WrongPassword
+                OpenResult.Corrupt -> BackupImportResult.Corrupt
+                OpenResult.Unreadable -> BackupImportResult.Unrecognized
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadCloud failed", e)
+            BackupImportResult.Failed(
+                BackupErrorMessages.cloudRestoreFailed(e.message)
             )
-            OpenResult.WrongPassword -> BackupImportResult.WrongPassword
-            OpenResult.Corrupt -> BackupImportResult.Corrupt
-            OpenResult.Unreadable -> BackupImportResult.Unrecognized
         }
-    }.getOrElse {
-        BackupImportResult.Unrecognized
     }
 
     /**
@@ -545,6 +557,7 @@ class BackupManager(
     }
 
     companion object {
+        private const val TAG = "BackupManager"
         private val LEGACY_MONGO_DB_NAMES = setOf("splitbill")
         private val LEGACY_MONGO_COLLECTIONS = setOf(
             "splitbill_backup",

@@ -114,6 +114,13 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_LAST_VERSION] = code }
     }
 
+    suspend fun lastHeartbeatUtcDay(): String? =
+        dataStore.data.first()[KEY_LAST_HEARTBEAT_DAY]
+
+    suspend fun markHeartbeatSent(utcDay: String) {
+        dataStore.edit { prefs -> prefs[KEY_LAST_HEARTBEAT_DAY] = utcDay }
+    }
+
     suspend fun recordSuccessfulBackup(at: Long = System.currentTimeMillis()) {
         dataStore.edit { prefs -> prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = at }
     }
@@ -167,6 +174,7 @@ class SettingsRepository(context: Context) {
         private val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
         private val KEY_LAST_SUCCESSFUL_BACKUP_AT = longPreferencesKey("last_successful_backup_at")
         private val KEY_LAST_VERSION = intPreferencesKey("last_known_version_code")
+        private val KEY_LAST_HEARTBEAT_DAY = stringPreferencesKey("last_heartbeat_utc_day")
         private val KEY_NOTIFIED_DELETIONS = stringPreferencesKey("notified_deletion_ids")
         private val KEY_ROOM_DEVICES = stringPreferencesKey("room_devices_json")
         private val KEY_AUDIT_LOG = stringPreferencesKey("audit_log_json")

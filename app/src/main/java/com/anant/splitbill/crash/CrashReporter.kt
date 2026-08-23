@@ -6,24 +6,59 @@ import android.util.Log
 import com.anant.splitbill.BuildConfig
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import io.sentry.Breadcrumb
+import io.sentry.CheckIn
+import io.sentry.CheckInStatus
+import io.sentry.MonitorConfig
+import io.sentry.MonitorSchedule
+import io.sentry.MonitorScheduleUnit
 import io.sentry.Sentry
+import io.sentry.SentryAttribute
+import io.sentry.SentryAttributes
 import io.sentry.SentryEvent
 import io.sentry.SentryLevel
+import io.sentry.SentryLogLevel
 import io.sentry.SentryOptions.BeforeSendCallback
 import io.sentry.android.core.SentryAndroid
+import io.sentry.logger.SentryLogParameters
+import io.sentry.metrics.SentryMetricsParameters
+import io.sentry.protocol.SentryId
 import io.sentry.protocol.User
 import java.util.concurrent.atomic.AtomicBoolean
 
+/** Coarse snapshot attached to daily heartbeats (user id is the Room / Support ID). */
 data class HeartbeatInfo(
     val roomCount: Int = 0,
     val entryCount: Int = 0,
     val isDeveloper: Boolean = false,
     val androidSdk: Int = Build.VERSION.SDK_INT,
     val manufacturer: String = Build.MANUFACTURER.orEmpty().take(64),
-    val model: String = Build.MODEL.orEmpty().take(64)
+    val model: String = Build.MODEL.orEmpty().take(64),
 )
 
+/** Why a fleet pulse was sent — maps to the Sentry log message string. */
+enum class HeartbeatKind {
+    DAILY,
+    DELETE,
+    CONFETTI,
+    UPDATE;
+
+    val logMessage: String
+        get() = when (this) {
+            DAILY -> "SplitBill daily heartbeat"
+            DELETE -> "SplitBill delete heartbeat"
+            CONFETTI -> "SplitBill confetti heartbeat"
+            UPDATE -> "SplitBill update heartbeat"
+        }
+}
+
+/**
+ * Thin Sentry wrapper: crashes/ANRs, optional daily heartbeat check-ins, no PII.
+ * Empty [BuildConfig.SENTRY_DSN_BLOB] keeps the SDK uninitialized (local builds without a key).
+ */
 object CrashReporter {
+
+    /** Fleet-level cron monitor: any install with reporting on may check in once per UTC day. */
+    const val HEARTBEAT_MONITOR_SLUG = "splitbill-daily-heartbeat"
 
     private val ready = AtomicBoolean(false)
 
@@ -35,7 +70,7 @@ object CrashReporter {
         if (BuildConfig.SENTRY_DSN_BLOB.isBlank()) return
         val dsn = MongoUriVault.decode(
             BuildConfig.SENTRY_DSN_BLOB,
-            BuildConfig.SENTRY_DSN_MASK
+            BuildConfig.SENTRY_DSN_MASK,
         ).trim()
         if (dsn.isEmpty()) return
 
@@ -45,13 +80,25 @@ object CrashReporter {
             options.isSendDefaultPii = false
             options.tracesSampleRate = 0.0
             options.isEnableUserInteractionTracing = false
+            // Disable all automatic/periodic network traffic — we flush manually
+            // during heartbeats (UTC midnight) and let crash events through immediately.
             options.isEnableAutoSessionTracking = false
             options.isSendClientReports = false
+            // Fleet pulse: Logs (samples) + Metrics (counts by device/version). Not Issues.
+            options.logs.isEnabled = true
+            options.metrics.isEnabled = true
             options.environment = if (BuildConfig.DEBUG) "debug" else "release"
             options.release =
                 "${BuildConfig.APPLICATION_ID}@${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}"
             options.setBeforeSend(BeforeSendCallback { event, _ ->
                 if (!reportingEnabled) return@BeforeSendCallback null
+                // Heartbeats use Logs/Metrics only — never promote them to Issues.
+                val msg = event.message?.formatted
+                if (event.fingerprints?.contains(HEARTBEAT_MONITOR_SLUG) == true ||
+                    HeartbeatKind.entries.any { it.logMessage == msg }
+                ) {
+                    return@BeforeSendCallback null
+                }
                 scrub(event)
             })
         }
@@ -77,19 +124,70 @@ object CrashReporter {
                 this.category = category
                 this.message = message
                 level = SentryLevel.INFO
-            }
+            },
         )
     }
 
-    fun sendDailyHeartbeat(info: HeartbeatInfo): Boolean {
+    /**
+     * Anonymous heartbeat: Crons check-in (OK) plus Metrics/Logs with device/app
+     * attributes for fleet breakdown (Explore → Metrics / Logs — not Issues).
+     * Callers gate once-per-day / once-per-update. Returns true if the check-in was sent.
+     */
+    fun sendHeartbeat(info: HeartbeatInfo, kind: HeartbeatKind = HeartbeatKind.DAILY): Boolean {
         if (!ready.get()) return false
         return runCatching {
-            breadcrumb("heartbeat", "rooms=${info.roomCount} entries=${info.entryCount}")
-            Sentry.flush(3_000L)
-            true
+            val checkIn = CheckIn(HEARTBEAT_MONITOR_SLUG, CheckInStatus.OK).apply {
+                release =
+                    "${BuildConfig.APPLICATION_ID}@${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}"
+                environment = if (BuildConfig.DEBUG) "debug" else "release"
+                duration = 0.0
+                monitorConfig = MonitorConfig(
+                    MonitorSchedule.interval(1, MonitorScheduleUnit.DAY),
+                ).apply {
+                    checkinMargin = 2L * 24L * 60L
+                    maxRuntime = 5L
+                    timezone = "UTC"
+                    failureIssueThreshold = 10L
+                }
+            }
+            val checkInId = Sentry.captureCheckIn(checkIn)
+            emitFleetPulse(info, message = kind.logMessage)
+            Sentry.flush(5_000L)
+            checkInId != SentryId.EMPTY_ID
         }.onFailure { e ->
             Log.e(TAG, "heartbeat failed", e)
         }.getOrDefault(false)
+    }
+
+    fun sendDailyHeartbeat(info: HeartbeatInfo, force: Boolean = false): Boolean =
+        sendHeartbeat(info, if (force) HeartbeatKind.CONFETTI else HeartbeatKind.DAILY)
+
+    private fun emitFleetPulse(info: HeartbeatInfo, message: String) {
+        val attrList = buildList {
+            add(SentryAttribute.stringAttribute("heartbeat", "true"))
+            add(SentryAttribute.stringAttribute("heartbeat_kind", message))
+            add(SentryAttribute.stringAttribute("manufacturer", info.manufacturer))
+            add(SentryAttribute.stringAttribute("model", info.model))
+            add(SentryAttribute.integerAttribute("android_sdk", info.androidSdk))
+            add(SentryAttribute.stringAttribute("app_version", BuildConfig.VERSION_NAME))
+            add(SentryAttribute.stringAttribute("app_build", BuildConfig.VERSION_CODE.toString()))
+            add(SentryAttribute.stringAttribute("app_id", BuildConfig.APPLICATION_ID))
+            add(SentryAttribute.integerAttribute("room_count", info.roomCount))
+            add(SentryAttribute.integerAttribute("entry_count", info.entryCount))
+            add(SentryAttribute.booleanAttribute("is_developer", info.isDeveloper))
+        }
+        val attrs = SentryAttributes.of(*attrList.toTypedArray())
+        Sentry.metrics().count(
+            "splitbill.daily_active",
+            1.0,
+            null,
+            SentryMetricsParameters.create(attrs),
+        )
+        Sentry.logger().log(
+            SentryLogLevel.INFO,
+            SentryLogParameters.create(attrs),
+            message,
+        )
     }
 
     private const val TAG = "SplitBillCrash"

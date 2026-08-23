@@ -53,4 +53,7 @@ sealed interface BackupImportResult {
     data object Corrupt : BackupImportResult
     data object Unrecognized : BackupImportResult
     data object PasswordRequired : BackupImportResult
+    /** No cloud document exists for the requested Room / Support ID (HTTP 404). */
+    data object NotFound : BackupImportResult
+    data class Failed(val message: String) : BackupImportResult
 }

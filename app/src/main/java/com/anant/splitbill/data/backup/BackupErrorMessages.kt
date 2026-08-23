@@ -9,4 +9,14 @@ object BackupErrorMessages {
 
     fun cloudRestoreFailed(reason: String?): String =
         "Cloud restore failed" + if (!reason.isNullOrBlank()) ": $reason" else ""
+
+    fun cloudBackupNotFound(roomId: String): String {
+        val id = roomId.trim()
+        return if (id.isBlank()) {
+            "No cloud backup found for this device"
+        } else {
+            "No cloud backup found for Room ID $id. " +
+                "If you reinstalled or cleared app data, use Join room with your saved Room ID."
+        }
+    }
 }
