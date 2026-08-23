@@ -33,7 +33,6 @@ import com.anant.splitbill.BuildConfig
 import com.anant.splitbill.ui.components.Button
 import com.anant.splitbill.ui.components.OutlinedButton
 import com.anant.splitbill.ui.viewmodel.UpdateUiState
-import com.anant.splitbill.util.ApkDownloader
 import kotlinx.coroutines.delay
 
 /** Update dialog — shown from [MainActivity] so startup checks work outside Settings. */
@@ -42,8 +41,8 @@ fun UpdatePromptDialogs(
     updateState: UpdateUiState,
     cloudBackupEnabled: Boolean,
     onDismissUpdatePrompt: () -> Unit,
-    onExportBackupAndDownload: (downloadUrl: String, fileName: String) -> Unit,
-    onSkipBackupAndDownload: (downloadUrl: String, fileName: String) -> Unit
+    onExportBackupAndDownload: (downloadUrl: String) -> Unit,
+    onSkipBackupAndDownload: (downloadUrl: String) -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
 
@@ -143,14 +142,13 @@ fun UpdatePromptDialogs(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        val fileName = ApkDownloader.fileNameFor(info.versionName, info.versionCode)
                         Button(
-                            onClick = { onExportBackupAndDownload(info.downloadUrl, fileName) },
+                            onClick = { onExportBackupAndDownload(info.downloadUrl) },
                             enabled = !busy && !updateState.backupCompleted,
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Export backup & download") }
                         OutlinedButton(
-                            onClick = { onSkipBackupAndDownload(info.downloadUrl, fileName) },
+                            onClick = { onSkipBackupAndDownload(info.downloadUrl) },
                             enabled = skipEnabled,
                             modifier = Modifier.fillMaxWidth()
                         ) {

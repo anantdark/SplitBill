@@ -57,7 +57,6 @@ data class UpdateUiState(
     val backupCompleted: Boolean = false,
     val isExportingBackup: Boolean = false,
     val pendingDownloadUrlAfterBackup: String? = null,
-    val pendingDownloadFileName: String? = null,
     val backupStatusMessage: String? = null,
     val backupStatusIsError: Boolean = false,
 )
@@ -588,7 +587,6 @@ class MainViewModel(
                         backupCompleted = false,
                         isExportingBackup = false,
                         pendingDownloadUrlAfterBackup = null,
-                        pendingDownloadFileName = null,
                         backupStatusMessage = null,
                         backupStatusIsError = false,
                     )
@@ -602,7 +600,6 @@ class MainViewModel(
                         backupCompleted = false,
                         isExportingBackup = false,
                         pendingDownloadUrlAfterBackup = null,
-                        pendingDownloadFileName = null,
                         backupStatusMessage = null,
                         backupStatusIsError = false,
                     )
@@ -616,7 +613,6 @@ class MainViewModel(
                         backupCompleted = false,
                         isExportingBackup = false,
                         pendingDownloadUrlAfterBackup = null,
-                        pendingDownloadFileName = null,
                         backupStatusMessage = null,
                         backupStatusIsError = false,
                     )
@@ -636,23 +632,25 @@ class MainViewModel(
                 backupCompleted = false,
                 isExportingBackup = false,
                 pendingDownloadUrlAfterBackup = null,
-                pendingDownloadFileName = null,
                 backupStatusMessage = null,
                 backupStatusIsError = false,
             )
         }
     }
 
-    fun onUpdateDownloadStarted() {
+    /**
+     * Called after opening the APK asset download URL in the system browser.
+     * Clears the update prompt; the browser handles the download.
+     */
+    fun onUpdateDownloadOpened() {
         _updateState.update {
             it.copy(
                 updateInfo = null,
-                statusMessage = "APK download started — check your Downloads folder",
+                statusMessage = "Download started in your browser — install the APK when it finishes",
                 statusIsError = false,
                 backupCompleted = false,
                 isExportingBackup = false,
                 pendingDownloadUrlAfterBackup = null,
-                pendingDownloadFileName = null,
                 backupStatusMessage = null,
                 backupStatusIsError = false,
             )
@@ -665,7 +663,6 @@ class MainViewModel(
                 statusMessage = message,
                 statusIsError = true,
                 pendingDownloadUrlAfterBackup = null,
-                pendingDownloadFileName = null,
                 backupCompleted = false,
             )
         }
@@ -677,13 +674,12 @@ class MainViewModel(
         }
     }
 
-    fun beginExportBackupAndUpdate(context: Context, downloadUrl: String, fileName: String) {
+    fun beginExportBackupAndUpdate(context: Context, downloadUrl: String) {
         if (_updateState.value.isExportingBackup) return
         if (_updateState.value.backupCompleted) return
         _updateState.update {
             it.copy(
                 pendingDownloadUrlAfterBackup = downloadUrl,
-                pendingDownloadFileName = fileName,
                 backupStatusMessage = null,
                 backupStatusIsError = false,
             )
@@ -725,7 +721,6 @@ class MainViewModel(
                                 isExportingBackup = false,
                                 backupCompleted = false,
                                 pendingDownloadUrlAfterBackup = null,
-                                pendingDownloadFileName = null,
                                 backupStatusMessage = "Backup timestamp missing or too old; download cancelled",
                                 backupStatusIsError = true,
                             )
@@ -757,7 +752,6 @@ class MainViewModel(
                             isExportingBackup = false,
                             backupCompleted = false,
                             pendingDownloadUrlAfterBackup = null,
-                            pendingDownloadFileName = null,
                             backupStatusMessage = message,
                             backupStatusIsError = true,
                         )

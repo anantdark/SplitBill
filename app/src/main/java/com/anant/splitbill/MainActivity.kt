@@ -1,5 +1,6 @@
 package com.anant.splitbill
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -33,7 +34,6 @@ import com.anant.splitbill.ui.util.dismissKeyboardOnTap
 import com.anant.splitbill.ui.viewmodel.AppDestination
 import com.anant.splitbill.ui.viewmodel.MainViewModel
 import com.anant.splitbill.ui.viewmodel.MainViewModelFactory
-import com.anant.splitbill.util.ApkDownloader
 import com.anant.splitbill.util.SystemToast
 import kotlinx.coroutines.delay
 
@@ -83,14 +83,18 @@ private fun SplitBillNavHost(
 
     var startupUpdateChecked by remember { mutableStateOf(false) }
 
-    fun startUpdateDownload(downloadUrl: String, fileName: String) {
+    /** Open the APK browser_download_url so the system browser starts the download. */
+    fun startUpdateDownload(downloadUrl: String) {
         try {
-            ApkDownloader.enqueue(context, downloadUrl, fileName)
-            viewModel.onUpdateDownloadStarted()
-            SystemToast.show(context, "Downloading $fileName")
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl)).apply {
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            viewModel.onUpdateDownloadOpened()
         } catch (e: Exception) {
             viewModel.failOpenUpdateDownload(
-                e.message?.takeIf { it.isNotBlank() } ?: "Could not start download"
+                e.message?.takeIf { it.isNotBlank() } ?: "Could not open download link"
             )
         }
     }
@@ -105,22 +109,20 @@ private fun SplitBillNavHost(
     LaunchedEffect(
         updateState.backupCompleted,
         updateState.pendingDownloadUrlAfterBackup,
-        updateState.pendingDownloadFileName,
         settings.lastSuccessfulBackupAt,
     ) {
         val url = updateState.pendingDownloadUrlAfterBackup ?: return@LaunchedEffect
-        val fileName = updateState.pendingDownloadFileName ?: return@LaunchedEffect
         if (!updateState.backupCompleted) return@LaunchedEffect
         if (!settings.hasFreshSuccessfulBackup()) return@LaunchedEffect
-        startUpdateDownload(url, fileName)
+        startUpdateDownload(url)
     }
 
     UpdatePromptDialogs(
         updateState = updateState,
         cloudBackupEnabled = settings.cloudBackupEnabled && MongoUriVault.isAvailable(),
         onDismissUpdatePrompt = viewModel::dismissUpdatePrompt,
-        onExportBackupAndDownload = { downloadUrl, fileName ->
-            viewModel.beginExportBackupAndUpdate(context, downloadUrl, fileName)
+        onExportBackupAndDownload = { downloadUrl ->
+            viewModel.beginExportBackupAndUpdate(context, downloadUrl)
         },
         onSkipBackupAndDownload = ::startUpdateDownload,
     )
