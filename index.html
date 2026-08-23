@@ -3,170 +3,153 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SplitBill — Shared prepaid meter tracking for Android</title>
-  <meta name="description" content="Log prepaid electricity meter readings and recharges. Split costs fairly, see balances, and know who should top up next. Multi-device room sync, offline-first, open source." />
-  <meta property="og:title" content="SplitBill — Who tops up next?" />
-  <meta property="og:description" content="Shared prepaid meter tracking for Android. Log readings, split fairly, sync across devices." />
-  <meta property="og:image" content="https://anantdark.github.io/SplitBill/assets/hero.jpg" />
+  <title>SplitBill — prepaid meter tracking for shared flats</title>
+  <meta name="description" content="Android app for shared prepaid electricity meters. Log readings, split by usage, see who should top up next. Offline-first, open source." />
+  <meta property="og:title" content="SplitBill — who tops up next?" />
+  <meta property="og:description" content="Track a shared prepaid meter with your flatmates. Log recharges, split fairly, sync with a Room ID." />
+  <meta property="og:image" content="https://anantdark.github.io/SplitBill/assets/screens/dashboard.png" />
   <meta property="og:url" content="https://anantdark.github.io/SplitBill/" />
   <link rel="canonical" href="https://anantdark.github.io/SplitBill/" />
   <link rel="icon" href="assets/icon-mark.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital@0;1&wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="noise" aria-hidden="true"></div>
-
   <header class="site-header">
-    <a class="brand" href="./">SplitBill</a>
-    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <a class="brand" href="./">
+      <img src="assets/icon-mark.png" alt="" width="28" height="28" />
+      <span>SplitBill</span>
+    </a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+      <svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
     <nav id="site-nav">
-      <a href="#how">How it works</a>
+      <a href="#app">App</a>
       <a href="docs/">Guide</a>
       <a href="faq.html">FAQ</a>
       <a href="#download">Download</a>
-      <a href="https://github.com/anantdark/SplitBill" rel="noopener">GitHub</a>
+      <a href="https://github.com/anantdark/SplitBill" rel="noopener">Source</a>
     </nav>
   </header>
 
   <main>
-    <section class="hero">
-      <div class="hero-media" aria-hidden="true">
-        <img src="assets/hero.jpg" alt="" />
-        <div class="hero-veil"></div>
-      </div>
-      <div class="hero-copy">
-        <p class="brand-mark">SplitBill</p>
-        <h1>Log the meter.<br /><em>Split the bill.</em></h1>
+    <section class="intro">
+      <div class="intro-copy">
+        <p class="kicker">Android · offline-first · GPL-3.0</p>
+        <h1>One prepaid meter.<br />Everyone knows who tops up next.</h1>
         <p class="lede">
-          Android app for shared prepaid electricity meters — log readings and recharges,
-          auto-split costs by usage, and see who should top up next. Sync a room across
-          phones with a Room ID. Your data stays on your devices.
+          SplitBill is for flats that share a single prepaid electricity meter.
+          Log each recharge, split cost by actual usage, and keep balances straight
+          across roommates — without a spreadsheet or a group chat argument.
         </p>
         <div class="cta-row">
-          <a class="btn primary" href="#download">Get the app</a>
-          <a class="btn ghost" href="docs/">Beginner guide</a>
+          <a class="btn primary" href="#download">Download APK</a>
+          <a class="btn secondary" href="docs/">Setup guide</a>
         </div>
+        <ul class="intro-points">
+          <li>No account — data stays on your phone</li>
+          <li>Optional Room ID sync for multiple devices</li>
+          <li>Works fully offline after setup</li>
+        </ul>
+      </div>
+      <figure class="intro-shot">
+        <img src="assets/screens/dashboard.png" alt="SplitBill home screen showing prepaid balances and who should recharge next" width="1080" height="2400" />
+      </figure>
+    </section>
+
+    <section class="panel" id="app">
+      <div class="panel-head">
+        <h2>What you actually do</h2>
+        <p>Three screens, repeated after every meter top-up.</p>
+      </div>
+      <div class="shot-grid">
+        <article class="shot-card">
+          <img src="assets/screens/dashboard.png" alt="Home screen with member balances" width="1080" height="2400" loading="lazy" />
+          <h3>Check balances</h3>
+          <p>See prepaid balances and who should recharge next.</p>
+        </article>
+        <article class="shot-card">
+          <img src="assets/screens/recharge.png" alt="Log meter reading and recharge form" width="1080" height="2400" loading="lazy" />
+          <h3>Log a top-up</h3>
+          <p>Record meter readings and the amount paid after each recharge.</p>
+        </article>
+        <article class="shot-card">
+          <img src="assets/screens/history.png" alt="Usage history charts" width="1080" height="2400" loading="lazy" />
+          <h3>Review history</h3>
+          <p>Track monthly usage and fix a bad entry if someone mistyped.</p>
+        </article>
       </div>
     </section>
 
-    <section class="strip phones-strip" id="how">
-      <h2>One room. Fair splits.</h2>
-      <p class="section-lede">
-        Record → review balances → top up when it’s your turn. No spreadsheet required.
-      </p>
-      <div class="phone-row">
-        <figure class="phone">
-          <img src="assets/screens/dashboard.png" alt="Dashboard with prepaid balances" />
-          <figcaption>Balances</figcaption>
-        </figure>
-        <figure class="phone">
-          <img src="assets/screens/recharge.png" alt="Log meter reading and recharge" />
-          <figcaption>Log</figcaption>
-        </figure>
-        <figure class="phone">
-          <img src="assets/screens/history.png" alt="Usage history and trends" />
-          <figcaption>History</figcaption>
-        </figure>
+    <section class="panel panel-muted">
+      <div class="panel-head">
+        <h2>Built for the meter room, not the app store</h2>
+        <p>Practical features for shared prepaid setups.</p>
       </div>
-    </section>
-
-    <section class="features">
-      <h2>Built for shared meters.</h2>
-      <p class="section-lede">Flatmates, family homes, small offices — one prepaid meter, many people.</p>
-      <ul class="feature-list">
-        <li>
-          <h3>Room setup</h3>
-          <p>Name your room, add members, pick yourself. Share the Room ID so everyone joins the same meter room.</p>
-        </li>
-        <li>
-          <h3>Fair splitting</h3>
-          <p>Usage-based cost split from meter deltas. The member with the lowest balance is flagged to recharge next.</p>
-        </li>
-        <li>
-          <h3>Log recharges</h3>
-          <p>Record meter reading plus recharge amount after every top-up. Edit mistakes from history anytime.</p>
-        </li>
-        <li>
-          <h3>Cloud sync</h3>
-          <p>Optional pull-and-push sync across devices. Notifications when new logs arrive from the room.</p>
-        </li>
-        <li>
-          <h3>Backups</h3>
-          <p>Export a local JSON backup anytime. Optional password encryption for file exports. Cloud payload is gzip-compressed.</p>
-        </li>
-        <li>
+      <div class="feature-grid">
+        <article>
+          <h3>Room + members</h3>
+          <p>Name the flat, add everyone on the meter, pick yourself on each phone.</p>
+        </article>
+        <article>
+          <h3>Usage-based split</h3>
+          <p>Cost follows meter deltas — not an even split every time.</p>
+        </article>
+        <article>
+          <h3>Room ID sync</h3>
+          <p>Share one ID so every phone sees the same logs. Cloud sync is optional.</p>
+        </article>
+        <article>
+          <h3>Local backups</h3>
+          <p>Export JSON anytime. Add a password if you want the file encrypted.</p>
+        </article>
+        <article>
           <h3>Home widget</h3>
-          <p>Glance widget shows member balances on your home screen — no need to open the app for a quick check.</p>
-        </li>
-      </ul>
-    </section>
-
-    <section class="steps">
-      <h2>Three steps.</h2>
-      <ol class="step-list">
-        <li>
-          <span class="n">01</span>
-          <div>
-            <h3>Install</h3>
-            <p>F-Droid or the GitHub APK. Android 10+.</p>
-          </div>
-        </li>
-        <li>
-          <span class="n">02</span>
-          <div>
-            <h3>Create or join a room</h3>
-            <p>Set up members on one phone, or paste a Room ID to join an existing meter room.</p>
-          </div>
-        </li>
-        <li>
-          <span class="n">03</span>
-          <div>
-            <h3>Log every top-up</h3>
-            <p>After recharging the meter, log the reading and amount. Balances update for everyone.</p>
-          </div>
-        </li>
-      </ol>
-      <a class="btn primary" href="docs/">Read the full beginner guide</a>
-    </section>
-
-    <section class="compare">
-      <h2>Your room. Your devices.<br />Open source.</h2>
-      <p class="section-lede">
-        SplitBill is open source (GPL-3.0). No SplitBill account. Meter data syncs only when
-        you enable cloud sync — see <a href="privacy.html">Privacy</a> for what leaves your phone.
-      </p>
-    </section>
-
-    <section class="strip" id="download">
-      <h2>Get SplitBill</h2>
-      <p class="section-lede">Pick the channel you trust. Same codebase on every build flavor.</p>
-      <div class="store-row">
-        <a class="store-badge" href="https://f-droid.org/en/packages/com.anant.splitbill/" rel="noopener">
-          <img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="64" />
-        </a>
+          <p>Glance at balances from your launcher without opening the app.</p>
+        </article>
+        <article>
+          <h3>Open source</h3>
+          <p>Read the code, build it yourself, no vendor lock-in. <a href="https://github.com/anantdark/SplitBill">GitHub</a>.</p>
+        </article>
       </div>
-      <div class="cta-row" style="margin-top:1.5rem">
-        <a class="btn primary" href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">Download APK</a>
-        <a class="btn ghost" href="https://github.com/anantdark/SplitBill/releases">All releases</a>
+    </section>
+
+    <section class="panel download-panel" id="download">
+      <div class="download-card">
+        <div>
+          <p class="kicker">Install</p>
+          <h2>Get SplitBill</h2>
+          <p class="lede">
+            Download the latest APK from GitHub Releases. Requires Android 10+.
+            Builds are arm64-v8a. F-Droid is planned but not listed yet.
+          </p>
+          <div class="cta-row">
+            <a class="btn primary" href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">Download APK</a>
+            <a class="btn secondary" href="https://github.com/anantdark/SplitBill/releases">All releases</a>
+          </div>
+        </div>
+        <dl class="spec-list">
+          <div><dt>Platform</dt><dd>Android 10+</dd></div>
+          <div><dt>Architecture</dt><dd>arm64-v8a</dd></div>
+          <div><dt>License</dt><dd><a href="https://github.com/anantdark/SplitBill/blob/main/LICENSE">GPL-3.0</a></dd></div>
+          <div><dt>Privacy</dt><dd><a href="privacy.html">What leaves your phone</a></dd></div>
+        </dl>
       </div>
-      <p class="fine" style="margin-top:1rem">Requires Android 10+. GitHub APKs are arm64-v8a. F-Droid uses a different signing key — don’t mix update channels on one install.</p>
     </section>
   </main>
 
   <footer class="site-footer">
-    <a class="brand" href="./">SplitBill</a>
+    <p class="footer-note">Prepaid meter tracking for shared flats.</p>
     <div class="footer-links">
       <a href="docs/">Guide</a>
       <a href="faq.html">FAQ</a>
       <a href="privacy.html">Privacy</a>
       <a href="encryption.html">Encryption</a>
       <a href="https://github.com/anantdark/SplitBill">GitHub</a>
-      <a href="https://github.com/anantdark/SplitBill/blob/main/LICENSE">GPL-3.0</a>
     </div>
-    <p class="fine">Open source prepaid meter tracking for Android.</p>
   </footer>
 
   <script src="main.js"></script>

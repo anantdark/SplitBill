@@ -9,13 +9,15 @@
   <link rel="icon" href="assets/icon-mark.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital@0;1&wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="docs-body">
-  <div class="noise" aria-hidden="true"></div>
   <header class="site-header">
-    <a class="brand" href="./">SplitBill</a>
+    <a class="brand" href="./">
+      <img src="assets/icon-mark.png" alt="" width="28" height="28" />
+      <span>SplitBill</span>
+    </a>
     <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <nav id="site-nav">
       <a href="docs/">Guide</a>
@@ -83,7 +85,7 @@
         <p>
           GitHub flavor builds can send anonymous crash reports to Sentry when you opt in.
           Reports include stack traces and your Room ID as user context — not member balances
-          or meter readings by design. F-Droid builds disable Sentry entirely.
+          or meter readings by design. Crash reporting is optional and off by default.
         </p>
       </section>
 

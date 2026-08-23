@@ -9,14 +9,15 @@
   <link rel="icon" href="../assets/icon-mark.png" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Syne:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital@0;1&wght@400;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="../styles.css" />
 </head>
 <body class="docs-body">
-  <div class="noise" aria-hidden="true"></div>
-
   <header class="site-header">
-    <a class="brand" href="../">SplitBill</a>
+    <a class="brand" href="../">
+      <img src="../assets/icon-mark.png" alt="" width="28" height="28" />
+      <span>SplitBill</span>
+    </a>
     <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu"><svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <nav id="site-nav">
       <a href="../#download">Download</a>
@@ -63,18 +64,17 @@
 
       <section id="install">
         <h2>Install</h2>
-        <p>Pick one channel and stick to it (signing keys differ):</p>
-        <ul>
-          <li><a href="https://f-droid.org/en/packages/com.anant.splitbill/">F-Droid</a></li>
-          <li><a href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">GitHub APK</a> (arm64)</li>
-        </ul>
-        <p>Needs <strong>Android 10</strong> or newer.</p>
+        <p>
+          Download the latest <a href="https://github.com/anantdark/SplitBill/releases/latest/download/SplitBill-latest.apk">GitHub APK</a>
+          (arm64). Needs <strong>Android 10</strong> or newer.
+        </p>
+        <p class="fine">An F-Droid listing is planned but not available yet — use GitHub Releases for now.</p>
       </section>
 
       <section id="first">
         <h2>First-run setup</h2>
         <ol>
-          <li>Open SplitBill → <strong>Get started</strong> for a new room, or join with a Room ID.</li>
+          <li>Open SplitBill → <strong>Start fresh</strong> for a new room, or join with a Room ID.</li>
           <li>Name the room (e.g. “Flat 3B meter”).</li>
           <li>Add every member who shares the meter.</li>
           <li>Pick which member you are on this phone.</li>
@@ -133,7 +133,7 @@
           <li>Share the Room ID, not your personal name — it’s the sync key for the room.</li>
           <li>Use the share action to send balance summaries or an invite with the download link.</li>
           <li>Enable cloud sync only if multiple people log from different phones.</li>
-          <li>Crash reports are optional on GitHub builds — off by default on F-Droid.</li>
+          <li>Crash reporting is optional and off by default — enable it in Settings if you want to help fix bugs.</li>
         </ul>
       </section>
 
