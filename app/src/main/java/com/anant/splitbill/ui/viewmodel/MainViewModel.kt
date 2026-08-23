@@ -232,7 +232,7 @@ class MainViewModel(
                         settingsRepository.update { it.copy(defaultMemberId = null) }
                         _needsOnboarding.value = false
                         _destination.value = AppDestination.PickDefaultMember
-                        _userMessage.value = "Joined room (${result.recordCount} records)"
+                        _userMessage.value = "Joined room"
                     }
                     BackupImportResult.WrongPassword ->
                         error(BackupErrorMessages.INCORRECT_PASSWORD)
@@ -271,7 +271,7 @@ class MainViewModel(
                     }
                     _needsOnboarding.value = false
                     _destination.value = destinationAfterSelfCheck()
-                    _userMessage.value = "Restored ${result.recordCount} records"
+                    _userMessage.value = "Backup restored"
                 }
                 BackupImportResult.WrongPassword ->
                     _userMessage.value = BackupErrorMessages.IMPORT_TOO_MANY_ATTEMPTS
@@ -306,7 +306,7 @@ class MainViewModel(
                     }
                     _needsOnboarding.value = false
                     _destination.value = destinationAfterSelfCheck()
-                    _userMessage.value = "Cloud restore complete (${result.recordCount} records)"
+                    _userMessage.value = "Cloud restore complete"
                 }
                 BackupImportResult.NotFound ->
                     _userMessage.value = BackupErrorMessages.cloudBackupNotFound(roomId)
@@ -401,8 +401,8 @@ class MainViewModel(
         viewModelScope.launch {
             _busy.value = true
             runCatching {
-                val count = backupManager.exportTo(uri, password)
-                _userMessage.value = "Exported $count records"
+                backupManager.exportTo(uri, password)
+                _userMessage.value = "Backup exported"
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Export failed"
             }
@@ -438,7 +438,7 @@ class MainViewModel(
                                 val groups = result.newEntries.map { it.groupId }.distinct().size
                                 "Synced — $groups new update${if (groups == 1) "" else "s"} from cloud"
                             }
-                            else -> "Cloud synced (${result.recordCount} records)"
+                            else -> "Cloud synced"
                         }
                     }
                     .onFailure { e -> _userMessage.value = e.message ?: "Cloud sync failed" }
