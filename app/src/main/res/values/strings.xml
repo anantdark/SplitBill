@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SplitBill</string>
+    <string name="widget_balances_label">Meter balances</string>
+    <string name="widget_empty">Open SplitBill to set up a meter room</string>
+    <string name="crash_opt_in_title">Help improve SplitBill</string>
+    <string name="backup_export">Export local backup</string>
+    <string name="backup_import">Import local backup</string>
+    <string name="widget_next_recharge">Next top-up: %1$s</string>
+</resources>
