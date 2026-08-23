@@ -23,17 +23,26 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
   background: var(--ink);
   color: var(--paper);
   font-family: var(--font-display);
   font-weight: 500;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+main {
+  overflow-x: clip;
 }
 
 .noise {
@@ -69,7 +78,12 @@ code {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.1rem 1.5rem;
+  gap: 1rem;
+  padding:
+    max(0.85rem, env(safe-area-inset-top))
+    max(1.5rem, env(safe-area-inset-right))
+    1.1rem
+    max(1.5rem, env(safe-area-inset-left));
   background: linear-gradient(
     to bottom,
     rgba(var(--ink-rgb), 0.92),
@@ -105,6 +119,7 @@ code {
 .hero {
   position: relative;
   min-height: 100svh;
+  min-height: 100dvh;
   display: grid;
   align-items: end;
   padding: 0;
@@ -141,8 +156,13 @@ code {
 .hero-copy {
   position: relative;
   z-index: 1;
-  padding: 7rem 1.5rem 4.5rem;
+  padding:
+    7rem
+    max(1.5rem, env(safe-area-inset-right))
+    max(4.5rem, env(safe-area-inset-bottom))
+    max(1.5rem, env(safe-area-inset-left));
   max-width: 44rem;
+  width: 100%;
 }
 
 .brand-mark {
@@ -537,6 +557,14 @@ h2 {
   margin-top: 3rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.hide-sm {
+  display: inline;
 }
 
 /* ── Motion ───────────────────────────────────────── */
@@ -635,30 +663,29 @@ img, video {
   height: auto;
 }
 
-.site-header {
-  gap: 1rem;
-}
-
 .site-header .brand {
   margin-right: auto;
   position: relative;
   z-index: 2;
+  min-width: 0;
 }
 
 .nav-toggle {
   display: none;
   position: relative;
   z-index: 2;
-  width: 2.5rem;
-  height: 2.5rem;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 2px;
-  background: rgba(var(--ink-rgb, 12, 18, 16), 0.35);
+  background: rgba(var(--ink-rgb), 0.35);
   color: var(--paper);
   cursor: pointer;
   align-items: center;
   justify-content: center;
+  touch-action: manipulation;
 }
 
 .nav-toggle svg {
@@ -698,20 +725,76 @@ img, video {
   overflow-wrap: normal;
 }
 
+/* Tablet + mobile nav (collapses before links crowd the header) */
+@media (max-width: 900px) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .site-header nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0.5rem max(0.75rem, env(safe-area-inset-right)) 0.85rem
+      max(0.75rem, env(safe-area-inset-left));
+    background: rgba(var(--ink-rgb), 0.96);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: blur(12px);
+  }
+
+  .site-header nav.is-open {
+    display: flex;
+  }
+
+  .site-header nav a {
+    padding: 0.85rem 0.6rem;
+    border-bottom: 1px solid var(--line);
+    font-size: 1rem;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .site-header nav a:last-child {
+    border-bottom: 0;
+  }
+
+  .hide-sm {
+    display: none;
+  }
+}
+
 @media (max-width: 860px) {
   .site-header {
-    padding: 0.85rem 1rem;
+    padding:
+      max(0.85rem, env(safe-area-inset-top))
+      max(1rem, env(safe-area-inset-right))
+      0.85rem
+      max(1rem, env(safe-area-inset-left));
   }
 
   .hero-copy {
-    padding: 5.5rem 1rem 3rem;
+    padding:
+      5.5rem
+      max(1rem, env(safe-area-inset-right))
+      max(3rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
 
   .strip,
   .features,
   .steps,
   .compare {
-    padding: 3.5rem 1rem;
+    padding:
+      3.5rem
+      max(1rem, env(safe-area-inset-right))
+      3.5rem
+      max(1rem, env(safe-area-inset-left));
   }
 
   .feature-list li {
@@ -728,7 +811,11 @@ img, video {
   .docs-layout-wide {
     grid-template-columns: 1fr;
     gap: 1.75rem;
-    padding: 5.5rem 1rem 3rem;
+    padding:
+      5.5rem
+      max(1rem, env(safe-area-inset-right))
+      max(3rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
 
   .docs-nav {
@@ -742,17 +829,27 @@ img, video {
     width: 100%;
   }
 
+  .docs-main h2 {
+    font-size: clamp(1.35rem, 5vw, 1.75rem);
+  }
+
   .phone-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 1.5rem;
   }
 
   .phone img {
-    border-radius: 0.7rem;
+    max-width: min(280px, 82vw);
+    border-radius: 0.85rem;
   }
 
   .site-footer {
-    padding: 2.5rem 1rem 3rem;
+    padding:
+      2.5rem
+      max(1rem, env(safe-area-inset-right))
+      max(3rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
 
   .terminal code {
@@ -761,39 +858,6 @@ img, video {
 }
 
 @media (max-width: 640px) {
-  .nav-toggle {
-    display: inline-flex;
-  }
-
-  .site-header nav {
-    display: none;
-    position: absolute;
-    top: calc(100% - 0.15rem);
-    left: 0;
-    right: 0;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0;
-    padding: 0.5rem 0.75rem 0.85rem;
-    background: rgba(var(--ink-rgb, 12, 18, 16), 0.96);
-    border-bottom: 1px solid var(--line);
-    backdrop-filter: blur(12px);
-  }
-
-  .site-header nav.is-open {
-    display: flex;
-  }
-
-  .site-header nav a {
-    padding: 0.75rem 0.6rem;
-    border-bottom: 1px solid var(--line);
-    font-size: 1rem;
-  }
-
-  .site-header nav a:last-child {
-    border-bottom: 0;
-  }
-
   .brand-mark {
     font-size: clamp(2rem, 11vw, 2.8rem);
   }
@@ -819,12 +883,7 @@ img, video {
 
   .btn {
     width: 100%;
-  }
-
-  .phone-row {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    gap: 1.5rem;
+    min-height: 2.75rem;
   }
 
   .phone img {
@@ -833,6 +892,7 @@ img, video {
 
   .store-badge img {
     height: 48px;
+    max-width: 100%;
   }
 
   .store-row {
@@ -844,12 +904,30 @@ img, video {
     gap: 0.65rem;
   }
 
+  .docs-end {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docs-end .btn {
+    width: 100%;
+  }
+
   .terminal pre {
     padding: 0.85rem;
   }
 
   .terminal code {
     font-size: 0.72rem;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .faq dt,
+  .docs-main p,
+  .docs-main li,
+  .docs-main dd {
+    overflow-wrap: break-word;
   }
 }
 
@@ -860,6 +938,10 @@ img, video {
 
   .btn {
     padding: 0.8rem 1rem;
+  }
+
+  .site-header .brand {
+    font-size: 1.05rem;
   }
 }
 

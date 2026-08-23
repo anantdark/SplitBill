@@ -45,11 +45,12 @@
   const header = document.querySelector(".site-header");
   const hero = document.querySelector(".hero");
   if (header && hero) {
+    const ink = "11, 31, 26";
     const onScroll = () => {
       const past = window.scrollY > hero.offsetHeight * 0.55;
       header.style.background = past
-        ? "rgba(10, 14, 26, 0.92)"
-        : "linear-gradient(to bottom, rgba(10, 14, 26, 0.92), rgba(10, 14, 26, 0))";
+        ? `rgba(${ink}, 0.92)`
+        : `linear-gradient(to bottom, rgba(${ink}, 0.92), rgba(${ink}, 0))`;
       header.style.backdropFilter = past ? "blur(10px)" : "none";
     };
     onScroll();
@@ -71,11 +72,16 @@
         nav.classList.remove("is-open");
       });
     });
+    const navMedia = window.matchMedia("(min-width: 901px)");
+    const closeNav = () => {
+      toggle.setAttribute("aria-expanded", "false");
+      nav.classList.remove("is-open");
+    };
+    navMedia.addEventListener("change", (e) => {
+      if (e.matches) closeNav();
+    });
     window.addEventListener("resize", () => {
-      if (window.innerWidth > 640) {
-        toggle.setAttribute("aria-expanded", "false");
-        nav.classList.remove("is-open");
-      }
+      if (navMedia.matches) closeNav();
     });
   }
 
