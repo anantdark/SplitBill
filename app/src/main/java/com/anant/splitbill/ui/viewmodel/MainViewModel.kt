@@ -766,6 +766,15 @@ class MainViewModel(
     fun triggerHeartCelebration() {
         _showEasterEgg.value = true
     }
+
+    fun markEasterEggDiscovered() {
+        viewModelScope.launch {
+            val current = settingsRepository.current()
+            if (!current.easterEggDiscovered) {
+                settingsRepository.update { it.copy(easterEggDiscovered = true) }
+            }
+        }
+    }
 }
 
 class MainViewModelFactory(

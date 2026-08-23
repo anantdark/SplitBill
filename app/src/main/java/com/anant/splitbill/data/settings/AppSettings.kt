@@ -14,6 +14,7 @@ data class AppSettings(
     val crashReportingEnabled: Boolean = !BuildConfig.IS_FDROID,
     val crashReportingPromptCompleted: Boolean = true,
     val developerModeUnlocked: Boolean = false,
+    val easterEggDiscovered: Boolean = false,
     val cloudBackupEnabled: Boolean = true,
     /**
      * When false (developer option), skips startup / hourly auto sync.

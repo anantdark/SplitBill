@@ -204,6 +204,18 @@ private fun SplitBillNavHost(
                     onDeveloperUnlockHint = { remaining ->
                         SystemToast.show(context, "$remaining taps to go")
                     },
+                    onDeveloperUnlockHintDismiss = { },
+                    onEasterEggTriggered = {
+                        viewModel.triggerHeartCelebration()
+                        viewModel.markEasterEggDiscovered()
+                    },
+                    onAnantTapHint = { remaining ->
+                        SystemToast.show(context, "$remaining taps to go")
+                    },
+                    onAnantTapHintDismiss = { },
+                    onAnantTapWhenUnlocked = {
+                        SystemToast.show(context, "Don't be greedy")
+                    },
                     onRoomIdCopied = {
                         SystemToast.show(context, "Room ID copied")
                     },

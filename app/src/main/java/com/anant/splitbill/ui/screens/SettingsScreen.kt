@@ -56,6 +56,7 @@ import com.anant.splitbill.data.model.ThemeMode
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.ui.components.Button
 import com.anant.splitbill.ui.components.CraftedWithLoveCredit
+import com.anant.splitbill.ui.components.RainbowCreditBadge
 import com.anant.splitbill.ui.components.OutlinedButton
 import androidx.compose.ui.text.style.TextDecoration
 import com.anant.splitbill.ui.util.dismissKeyboardOnTap
@@ -64,8 +65,9 @@ import kotlinx.coroutines.delay
 
 private const val DEVELOPER_UNLOCK_TAPS = 31
 private const val DEVELOPER_HINT_START = DEVELOPER_UNLOCK_TAPS - 5
+private const val EASTER_EGG_TAP_TARGET = 31
+private const val EASTER_EGG_HINT_START = 25
 private const val GITHUB_URL = "https://github.com/anantdark"
-private const val ANANT_SITE_URL = "https://anantdark.github.io"
 private const val SPLITBILL_SITE_URL = "https://anantdark.github.io/SplitBill/"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,6 +94,10 @@ fun SettingsScreen(
     onDeveloperModeToggled: (Boolean) -> Unit,
     onDeveloperUnlockHint: (remainingTaps: Int) -> Unit = {},
     onDeveloperUnlockHintDismiss: () -> Unit = {},
+    onEasterEggTriggered: () -> Unit = {},
+    onAnantTapHint: (remainingTaps: Int) -> Unit = {},
+    onAnantTapHintDismiss: () -> Unit = {},
+    onAnantTapWhenUnlocked: () -> Unit = {},
     onRoomIdCopied: () -> Unit = {},
     onInvite: () -> Unit = {},
     onRegenerateSupportId: () -> Unit,
@@ -101,6 +107,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     var packageTapCount by remember { mutableIntStateOf(0) }
+    var anantTapCount by remember { mutableIntStateOf(0) }
     val developerUnlocked = settings.developerModeUnlocked
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -116,6 +123,14 @@ fun SettingsScreen(
             delay(2_000)
             packageTapCount = 0
             onDeveloperUnlockHintDismiss()
+        }
+    }
+
+    LaunchedEffect(anantTapCount) {
+        if (anantTapCount in 1 until EASTER_EGG_TAP_TARGET) {
+            delay(2_000)
+            anantTapCount = 0
+            onAnantTapHintDismiss()
         }
     }
 
@@ -379,7 +394,29 @@ fun SettingsScreen(
                         }
                     }
                 )
-                AboutLinkRow("Created by", "Anant", ANANT_SITE_URL)
+                AboutRow(
+                    label = "Created by",
+                    valueContent = {
+                        val onAnantClick = {
+                            if (settings.easterEggDiscovered) {
+                                onAnantTapWhenUnlocked()
+                            } else {
+                                anantTapCount++
+                                when {
+                                    anantTapCount >= EASTER_EGG_TAP_TARGET -> {
+                                        anantTapCount = 0
+                                        onAnantTapHintDismiss()
+                                        onEasterEggTriggered()
+                                    }
+                                    anantTapCount >= EASTER_EGG_HINT_START -> {
+                                        onAnantTapHint(EASTER_EGG_TAP_TARGET - anantTapCount)
+                                    }
+                                }
+                            }
+                        }
+                        RainbowCreditBadge(name = "Anant", onClick = onAnantClick)
+                    }
+                )
                 AboutLinkRow("Website", "anantdark.github.io/SplitBill", SPLITBILL_SITE_URL)
                 AboutLinkRow("GitHub", "github.com/anantdark", GITHUB_URL)
             }
@@ -539,6 +576,28 @@ private fun AboutRow(
     value: String,
     onValueClick: (() -> Unit)? = null
 ) {
+    AboutRow(
+        label = label,
+        valueContent = {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = if (onValueClick != null) {
+                    Modifier.clickable(onClick = onValueClick)
+                } else {
+                    Modifier
+                }
+            )
+        }
+    )
+}
+
+@Composable
+private fun AboutRow(
+    label: String,
+    valueContent: @Composable () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -549,16 +608,7 @@ private fun AboutRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            modifier = if (onValueClick != null) {
-                Modifier.clickable(onClick = onValueClick)
-            } else {
-                Modifier
-            }
-        )
+        valueContent()
     }
 }
 

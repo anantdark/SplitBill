@@ -56,6 +56,8 @@ android {
         minSdk = 29
         targetSdk = 36
         ndk {
+            // Ship arm64-v8a only — drops armeabi-v7a, x86, and x86_64 from dependencies.
+            abiFilters.clear()
             abiFilters += listOf("arm64-v8a")
         }
         versionCode = ciVersionCode ?: 1

@@ -36,6 +36,7 @@ class SettingsRepository(context: Context) {
             crashReportingPromptCompleted = prefs[KEY_CRASH_PROMPT]
                 ?: true,
             developerModeUnlocked = prefs[KEY_DEVELOPER] ?: false,
+            easterEggDiscovered = prefs[KEY_EASTER_EGG] ?: false,
             cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP] ?: true,
             cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
             cloudBackupPasswordSet = prefs[KEY_CLOUD_PASSWORD_SET] ?: false,
@@ -91,6 +92,7 @@ class SettingsRepository(context: Context) {
             prefs[KEY_CRASH_REPORTING] = next.crashReportingEnabled
             prefs[KEY_CRASH_PROMPT] = next.crashReportingPromptCompleted
             prefs[KEY_DEVELOPER] = next.developerModeUnlocked
+            prefs[KEY_EASTER_EGG] = next.easterEggDiscovered
             prefs[KEY_CLOUD_BACKUP] = next.cloudBackupEnabled
             prefs[KEY_CLOUD_AUTO_UPLOAD] = next.cloudAutoUploadEnabled
             prefs[KEY_CLOUD_PASSWORD_SET] = next.cloudBackupPasswordSet
@@ -165,6 +167,7 @@ class SettingsRepository(context: Context) {
         private val KEY_CRASH_REPORTING = booleanPreferencesKey("crash_reporting")
         private val KEY_CRASH_PROMPT = booleanPreferencesKey("crash_prompt_done")
         private val KEY_DEVELOPER = booleanPreferencesKey("developer_unlocked")
+        private val KEY_EASTER_EGG = booleanPreferencesKey("easter_egg_discovered")
         private val KEY_CLOUD_BACKUP = booleanPreferencesKey("cloud_backup_enabled")
         private val KEY_CLOUD_AUTO_UPLOAD = booleanPreferencesKey("cloud_auto_upload_enabled")
         private val KEY_CLOUD_PASSWORD_SET = booleanPreferencesKey("cloud_backup_password_set")
