@@ -121,4 +121,63 @@ class BillEngineTest {
         assertEquals(BigDecimal("50.00"), byId.getValue("a").balance)
         assertEquals(BigDecimal("0.00"), byId.getValue("b").balance)
     }
+
+    @Test
+    fun prepaidRecharge_afterBaselineReadings_deductsOnlyFutureConsumption() {
+        val a = member("a", "Alice", 0)
+        val b = member("b", "Bob", 1)
+        val c = member("c", "Carol", 2)
+        val members = listOf(a, b, c)
+        var state = BillEngine.emptyState(members)
+
+        // Meters already at 30, 50, 100 — baseline log (no recharge yet).
+        state = BillEngine.recordReadingsAndRecharge(
+            roomId = "room1",
+            members = members,
+            current = state,
+            readings = mapOf("a" to 30.0, "b" to 50.0, "c" to 100.0),
+            rechargeMemberId = "a",
+            rechargeAmount = 0.0,
+            groupId = "g1"
+        ).state
+
+        assertEquals(30.0, state.byId().getValue("a").lastReading, 0.001)
+        assertEquals(0.0, state.byId().getValue("a").lastReadingBeforeRecharge, 0.001)
+
+        // Someone recharges at the same meter levels — full amount is prepaid credit.
+        state = BillEngine.recordReadingsAndRecharge(
+            roomId = "room1",
+            members = members,
+            current = state,
+            readings = mapOf("a" to 30.0, "b" to 50.0, "c" to 100.0),
+            rechargeMemberId = "b",
+            rechargeAmount = 600.0,
+            groupId = "g2"
+        ).state
+
+        val afterRecharge = state.byId()
+        assertEquals(BigDecimal("0.00"), afterRecharge.getValue("a").balance)
+        assertEquals(BigDecimal("600.00"), afterRecharge.getValue("b").balance)
+        assertEquals(BigDecimal("0.00"), afterRecharge.getValue("c").balance)
+        assertEquals(30.0, afterRecharge.getValue("a").lastReadingBeforeRecharge, 0.001)
+        assertEquals(50.0, afterRecharge.getValue("b").lastReadingBeforeRecharge, 0.001)
+        assertEquals(100.0, afterRecharge.getValue("c").lastReadingBeforeRecharge, 0.001)
+
+        // Next readings: consumption 10 + 10 + 30 = 50 units → split Rs.600 prepaid pool.
+        state = BillEngine.recordReadingsAndRecharge(
+            roomId = "room1",
+            members = members,
+            current = state,
+            readings = mapOf("a" to 40.0, "b" to 60.0, "c" to 130.0),
+            rechargeMemberId = "c",
+            rechargeAmount = 0.0,
+            groupId = "g3"
+        ).state
+
+        val afterUsage = state.byId()
+        // 10/50 * 600 = 120, 10/50 * 600 = 120, 30/50 * 600 = 360
+        assertEquals(BigDecimal("-120.00"), afterUsage.getValue("a").balance)
+        assertEquals(BigDecimal("480.00"), afterUsage.getValue("b").balance)
+        assertEquals(BigDecimal("-360.00"), afterUsage.getValue("c").balance)
+    }
 }

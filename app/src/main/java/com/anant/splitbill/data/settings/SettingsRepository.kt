@@ -25,24 +25,34 @@ class SettingsRepository(context: Context) {
         AppSettings(
             onboardingComplete = prefs[KEY_ONBOARDING] ?: false,
             activeRoomId = prefs[KEY_ACTIVE_ROOM],
+            defaultMemberId = prefs[KEY_DEFAULT_MEMBER],
             themeMode = runCatching {
                 ThemeMode.valueOf(prefs[KEY_THEME] ?: ThemeMode.SYSTEM.name)
             }.getOrDefault(ThemeMode.SYSTEM),
             dynamicColor = prefs[KEY_DYNAMIC_COLOR] ?: true,
             supportId = prefs[KEY_SUPPORT_ID].orEmpty(),
             crashReportingEnabled = prefs[KEY_CRASH_REPORTING]
-                ?: (!BuildConfig.DEBUG && !BuildConfig.IS_FDROID),
+                ?: !BuildConfig.IS_FDROID,
             crashReportingPromptCompleted = prefs[KEY_CRASH_PROMPT]
-                ?: BuildConfig.IS_FDROID,
+                ?: true,
             developerModeUnlocked = prefs[KEY_DEVELOPER] ?: false,
             cloudBackupEnabled = prefs[KEY_CLOUD_BACKUP] ?: true,
             cloudAutoUploadEnabled = prefs[KEY_CLOUD_AUTO_UPLOAD] ?: true,
             cloudBackupPasswordSet = prefs[KEY_CLOUD_PASSWORD_SET] ?: false,
-            mongoDbName = prefs[KEY_MONGO_DB]?.ifBlank { null }
-                ?: AppSettings.DEFAULT_MONGO_DB_NAME,
+            mongoDbName = normalizeMongoDbName(prefs[KEY_MONGO_DB]),
             mongoCollectionName = normalizeMongoCollection(prefs[KEY_MONGO_COLL]),
             lastCloudBackupAtEpochMs = prefs[KEY_LAST_CLOUD_BACKUP] ?: 0L,
+            autoCheckUpdates = prefs[KEY_AUTO_CHECK_UPDATES] ?: !BuildConfig.IS_FDROID,
+            lastSuccessfulBackupAt = prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] ?: 0L,
             lastKnownVersionCode = prefs[KEY_LAST_VERSION] ?: 0,
+            notifiedDeletionIds = prefs[KEY_NOTIFIED_DELETIONS]
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.toSet()
+                .orEmpty(),
+            roomDevicesJson = prefs[KEY_ROOM_DEVICES] ?: "[]",
+            auditLogJson = prefs[KEY_AUDIT_LOG] ?: "[]",
         )
     }
 
@@ -74,6 +84,8 @@ class SettingsRepository(context: Context) {
             prefs[KEY_ONBOARDING] = next.onboardingComplete
             if (next.activeRoomId.isNullOrBlank()) prefs.remove(KEY_ACTIVE_ROOM)
             else prefs[KEY_ACTIVE_ROOM] = next.activeRoomId
+            if (next.defaultMemberId.isNullOrBlank()) prefs.remove(KEY_DEFAULT_MEMBER)
+            else prefs[KEY_DEFAULT_MEMBER] = next.defaultMemberId
             prefs[KEY_THEME] = next.themeMode.name
             prefs[KEY_DYNAMIC_COLOR] = next.dynamicColor
             prefs[KEY_CRASH_REPORTING] = next.crashReportingEnabled
@@ -85,7 +97,15 @@ class SettingsRepository(context: Context) {
             prefs[KEY_MONGO_DB] = next.mongoDbName
             prefs[KEY_MONGO_COLL] = next.mongoCollectionName
             prefs[KEY_LAST_CLOUD_BACKUP] = next.lastCloudBackupAtEpochMs
+            prefs[KEY_AUTO_CHECK_UPDATES] = next.autoCheckUpdates
+            prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = next.lastSuccessfulBackupAt
             prefs[KEY_LAST_VERSION] = next.lastKnownVersionCode
+            prefs[KEY_NOTIFIED_DELETIONS] = next.notifiedDeletionIds
+                .toList()
+                .takeLast(200)
+                .joinToString(",")
+            prefs[KEY_ROOM_DEVICES] = next.roomDevicesJson
+            prefs[KEY_AUDIT_LOG] = next.auditLogJson
             if (next.supportId.isNotBlank()) prefs[KEY_SUPPORT_ID] = next.supportId
         }
     }
@@ -94,12 +114,24 @@ class SettingsRepository(context: Context) {
         dataStore.edit { it[KEY_LAST_VERSION] = code }
     }
 
+    suspend fun recordSuccessfulBackup(at: Long = System.currentTimeMillis()) {
+        dataStore.edit { prefs -> prefs[KEY_LAST_SUCCESSFUL_BACKUP_AT] = at }
+    }
+
     suspend fun lastKnownVersionCode(): Int? {
         val v = dataStore.data.first()[KEY_LAST_VERSION] ?: return null
         return if (v == 0) null else v
     }
 
     
+    private fun normalizeMongoDbName(raw: String?): String {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty() || value in LEGACY_MONGO_DB_NAMES) {
+            return AppSettings.DEFAULT_MONGO_DB_NAME
+        }
+        return value
+    }
+
     private fun normalizeMongoCollection(raw: String?): String {
         val value = raw?.trim().orEmpty()
         if (value.isEmpty() || value in LEGACY_MONGO_COLLECTIONS) {
@@ -109,14 +141,17 @@ class SettingsRepository(context: Context) {
     }
 
     companion object {
+        private val LEGACY_MONGO_DB_NAMES = setOf(
+            "splitbill",
+        )
         private val LEGACY_MONGO_COLLECTIONS = setOf(
-            "splitbill_backup",
             "splitbill_backup",
             "splitbill",
         )
 
         private val KEY_ONBOARDING = booleanPreferencesKey("onboarding_complete")
         private val KEY_ACTIVE_ROOM = stringPreferencesKey("active_room_id")
+        private val KEY_DEFAULT_MEMBER = stringPreferencesKey("default_member_id")
         private val KEY_THEME = stringPreferencesKey("theme_mode")
         private val KEY_DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         private val KEY_SUPPORT_ID = stringPreferencesKey("support_id")
@@ -129,6 +164,11 @@ class SettingsRepository(context: Context) {
         private val KEY_MONGO_DB = stringPreferencesKey("mongo_db_name")
         private val KEY_MONGO_COLL = stringPreferencesKey("mongo_collection")
         private val KEY_LAST_CLOUD_BACKUP = longPreferencesKey("last_cloud_backup_at")
+        private val KEY_AUTO_CHECK_UPDATES = booleanPreferencesKey("auto_check_updates")
+        private val KEY_LAST_SUCCESSFUL_BACKUP_AT = longPreferencesKey("last_successful_backup_at")
         private val KEY_LAST_VERSION = intPreferencesKey("last_known_version_code")
+        private val KEY_NOTIFIED_DELETIONS = stringPreferencesKey("notified_deletion_ids")
+        private val KEY_ROOM_DEVICES = stringPreferencesKey("room_devices_json")
+        private val KEY_AUDIT_LOG = stringPreferencesKey("audit_log_json")
     }
 }

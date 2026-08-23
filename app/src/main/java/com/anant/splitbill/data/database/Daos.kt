@@ -60,11 +60,36 @@ interface EntryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(entries: List<EntryEntity>)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entry: EntryEntity)
+
     @Query("DELETE FROM entries WHERE groupId = :groupId")
     suspend fun deleteGroup(groupId: String)
 
+    @Query("SELECT * FROM entries WHERE roomId = :roomId AND groupId = :groupId")
+    suspend fun getGroup(roomId: String, groupId: String): List<EntryEntity>
+
+    @Query(
+        """
+        SELECT * FROM entries
+        WHERE roomId = :roomId AND type = 'RECHARGE' AND deleted = 0
+        ORDER BY timestampEpochMs DESC, id DESC
+        """
+    )
+    suspend fun getActiveRecharges(roomId: String): List<EntryEntity>
+
     @Query("DELETE FROM entries WHERE roomId = :roomId")
     suspend fun deleteForRoom(roomId: String)
+
+    @Query(
+        """
+        SELECT * FROM entries
+        WHERE roomId = :roomId AND deleted = 0
+        ORDER BY timestampEpochMs DESC, id DESC
+        LIMIT 1
+        """
+    )
+    suspend fun latestActive(roomId: String): EntryEntity?
 
     @Query(
         """

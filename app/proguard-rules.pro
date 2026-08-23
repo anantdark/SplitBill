@@ -4,7 +4,10 @@
 
 -keep class com.anant.splitbill.data.model.** { *; }
 -keep class com.anant.splitbill.data.database.** { *; }
+-keep class com.anant.splitbill.data.remote.dto.** { *; }
+-keep interface com.anant.splitbill.data.remote.GithubApi { *; }
 -keep class com.anant.splitbill.data.backup.** { *; }
+
 -keep class com.anant.splitbill.**JsonAdapter { *; }
 
 -keep class com.squareup.moshi.** { *; }

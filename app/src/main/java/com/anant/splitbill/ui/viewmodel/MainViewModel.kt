@@ -1,18 +1,26 @@
 package com.anant.splitbill.ui.viewmodel
 
+import android.content.Context
 import android.net.Uri
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.anant.splitbill.BuildConfig
 import com.anant.splitbill.data.backup.BackupErrorMessages
 import com.anant.splitbill.data.backup.BackupImportResult
 import com.anant.splitbill.data.backup.BackupManager
+import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.database.EntryEntity
 import com.anant.splitbill.data.model.RoomDashboard
 import com.anant.splitbill.data.model.ThemeMode
+import com.anant.splitbill.data.remote.UpdateCheckResult
+import com.anant.splitbill.data.remote.UpdateChecker
 import com.anant.splitbill.data.repository.SplitBillRepository
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.data.settings.SettingsRepository
+import com.anant.splitbill.ui.screens.MainTab
+import com.anant.splitbill.util.BackupShare
 import com.anant.splitbill.util.ShareUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,25 +30,45 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 
 sealed class AppDestination {
-    data object Dashboard : AppDestination()
-    data object History : AppDestination()
+    /** Bottom-nav host (Home / History / Settings). */
+    data object Main : AppDestination()
     data object RecordRecharge : AppDestination()
-    data object Settings : AppDestination()
+    /** Pick which household member is “you” for default recharge logging. */
+    data object PickDefaultMember : AppDestination()
 }
+
+@Immutable
+data class UpdateUiState(
+    val isChecking: Boolean = false,
+    val updateInfo: UpdateCheckResult.Available? = null,
+    val statusMessage: String? = null,
+    val statusIsError: Boolean = false,
+    val backupCompleted: Boolean = false,
+    val isExportingBackup: Boolean = false,
+    val pendingDownloadUrlAfterBackup: String? = null,
+    val pendingDownloadFileName: String? = null,
+    val backupStatusMessage: String? = null,
+    val backupStatusIsError: Boolean = false,
+)
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModel(
     private val repository: SplitBillRepository,
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
+    private val updateChecker: UpdateChecker,
 ) : ViewModel() {
 
-    private val _destination = MutableStateFlow<AppDestination>(AppDestination.Dashboard)
+    private val _destination = MutableStateFlow<AppDestination>(AppDestination.Main)
     val destination: StateFlow<AppDestination> = _destination.asStateFlow()
+
+    private val _mainTab = MutableStateFlow(MainTab.Home)
+    val mainTab: StateFlow<MainTab> = _mainTab.asStateFlow()
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
@@ -73,7 +101,7 @@ class MainViewModel(
 
     init {
         viewModelScope.launch {
-            val current = settingsRepository.current()
+            var current = settingsRepository.current()
             _needsOnboarding.value = !current.onboardingComplete
             if (current.activeRoomId.isNullOrBlank()) {
                 val count = repository.roomCount()
@@ -84,25 +112,40 @@ class MainViewModel(
                     }
                 }
             }
+            current = settingsRepository.current()
+            if (current.onboardingComplete) {
+                _destination.value = destinationAfterSelfCheck()
+            }
         }
+    }
+
+    /** Dashboard if a valid default member is set; otherwise ask who “you” are. */
+    private suspend fun destinationAfterSelfCheck(): AppDestination {
+        val s = settingsRepository.current()
+        val roomId = s.activeRoomId ?: return AppDestination.Main
+        val members = repository.observeDashboard(roomId).first()?.members.orEmpty()
+        if (members.isEmpty()) return AppDestination.Main
+        val self = s.defaultMemberId
+        val valid = !self.isNullOrBlank() && members.any { it.memberId == self }
+        return if (valid) AppDestination.Main else AppDestination.PickDefaultMember
     }
 
     fun navigateTo(destination: AppDestination) {
         _destination.value = destination
     }
 
-    /** Opens the meter log form after pulling any newer cloud data. */
+    fun selectMainTab(tab: MainTab) {
+        _mainTab.value = tab
+        _destination.value = AppDestination.Main
+    }
+
+    fun goHome() {
+        selectMainTab(MainTab.Home)
+    }
+
+    /** Opens the meter log form. Cloud sync runs after a new entry is saved. */
     fun openRecordRecharge() {
-        viewModelScope.launch {
-            _busy.value = true
-            val pull = backupManager.pullLatestFromCloud()
-            _busy.value = false
-            pull.onFailure { e ->
-                _userMessage.value = e.message ?: "Couldn't sync earlier readings from cloud"
-                return@launch
-            }
-            _destination.value = AppDestination.RecordRecharge
-        }
+        _destination.value = AppDestination.RecordRecharge
     }
 
     fun consumeUserMessage() {
@@ -121,28 +164,46 @@ class MainViewModel(
         }
     }
 
-    fun completeOnboarding(roomName: String, memberNames: List<String>) {
+    fun completeOnboarding(roomName: String, memberNames: List<String>, defaultMemberName: String) {
         viewModelScope.launch {
             _busy.value = true
             runCatching {
                 val roomId = settingsRepository.ensureSupportId()
-                repository.createRoom(roomName, memberNames, roomId = roomId)
+                val members = repository.createRoom(roomName, memberNames, roomId = roomId)
+                val selfName = defaultMemberName.trim()
+                val defaultId = members.firstOrNull { it.name.equals(selfName, ignoreCase = true) }?.id
+                    ?: members.firstOrNull()?.id
                 settingsRepository.update {
                     it.copy(
                         onboardingComplete = true,
                         activeRoomId = roomId,
                         supportId = roomId,
+                        defaultMemberId = defaultId,
                     )
                 }
                 // Seed cloud so others can join with this Room ID.
                 backupManager.pushCloud()
                 _needsOnboarding.value = false
-                _destination.value = AppDestination.Dashboard
+                _destination.value = AppDestination.Main
                 _userMessage.value = "Room ready — share Room ID to invite others"
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Couldn't create room"
             }
             _busy.value = false
+        }
+    }
+
+    fun setDefaultMemberId(memberId: String) {
+        viewModelScope.launch {
+            val id = memberId.trim()
+            if (id.isBlank()) return@launch
+            val name = dashboard.value?.members?.firstOrNull { it.memberId == id }?.name
+            settingsRepository.update { it.copy(defaultMemberId = id) }
+            if (_destination.value == AppDestination.PickDefaultMember) {
+                _destination.value = AppDestination.Main
+            } else if (name != null) {
+                _userMessage.value = "You're set as $name"
+            }
         }
     }
 
@@ -156,23 +217,23 @@ class MainViewModel(
             runCatching {
                 val id = roomId.trim()
                 require(id.isNotBlank()) { "Enter a Room ID" }
-                settingsRepository.setSupportId(id)
-                com.anant.splitbill.crash.CrashReporter.setSupportId(id)
-                when (val result = backupManager.downloadCloud()) {
+                when (val result = backupManager.joinFromCloud(id)) {
                     is BackupImportResult.Success -> {
-                        repository.alignPrimaryRoomId(id)
-                        settingsRepository.update {
-                            it.copy(
-                                onboardingComplete = true,
-                                activeRoomId = id,
-                                supportId = id,
-                            )
-                        }
+                        com.anant.splitbill.crash.CrashReporter.setSupportId(id)
+                        // Joining another device's room — re-pick who “you” are.
+                        settingsRepository.update { it.copy(defaultMemberId = null) }
                         _needsOnboarding.value = false
-                        _destination.value = AppDestination.Dashboard
+                        _destination.value = AppDestination.PickDefaultMember
                         _userMessage.value = "Joined room (${result.recordCount} records)"
                     }
-                    else -> error("No cloud room found for that Room ID")
+                    BackupImportResult.WrongPassword ->
+                        error(BackupErrorMessages.INCORRECT_PASSWORD)
+                    BackupImportResult.Corrupt ->
+                        error(BackupErrorMessages.BACKUP_CORRUPT)
+                    BackupImportResult.PasswordRequired ->
+                        error(BackupErrorMessages.INCORRECT_PASSWORD)
+                    BackupImportResult.Unrecognized ->
+                        error("No cloud room found for that Room ID")
                 }
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Couldn't join room"
@@ -198,6 +259,7 @@ class MainViewModel(
                         it.copy(onboardingComplete = true, activeRoomId = active)
                     }
                     _needsOnboarding.value = false
+                    _destination.value = destinationAfterSelfCheck()
                     _userMessage.value = "Restored ${result.recordCount} records"
                 }
                 BackupImportResult.WrongPassword ->
@@ -228,6 +290,7 @@ class MainViewModel(
                         )
                     }
                     _needsOnboarding.value = false
+                    _destination.value = destinationAfterSelfCheck()
                     _userMessage.value = "Cloud restore complete (${result.recordCount} records)"
                 }
                 BackupImportResult.WrongPassword ->
@@ -248,17 +311,26 @@ class MainViewModel(
     ) {
         viewModelScope.launch {
             val roomId = settings.value.activeRoomId ?: return@launch
+            val self = dashboard.value?.members
+                ?.firstOrNull { it.memberId == settings.value.defaultMemberId }
             _busy.value = true
             runCatching {
-                // Pull earlier cloud data before writing so we don't overwrite remote history.
-                backupManager.pullLatestFromCloud().getOrThrow()
-                repository.recordReadingsAndRecharge(roomId, readings, rechargeMemberId, rechargeAmount)
-                _destination.value = AppDestination.Dashboard
-                // Best-effort upload of the new readings.
-                backupManager.pushCloud().onFailure { e ->
-                    _userMessage.value =
-                        e.message?.let { "Saved locally, but cloud upload failed: $it" }
-                            ?: "Saved locally, but cloud upload failed"
+                repository.recordReadingsAndRecharge(
+                    roomId = roomId,
+                    readings = readings,
+                    rechargeMemberId = rechargeMemberId,
+                    rechargeAmount = rechargeAmount,
+                    loggedByMemberId = self?.memberId,
+                    loggedByMemberName = self?.name,
+                )
+                _destination.value = AppDestination.Main
+                _mainTab.value = MainTab.Home
+                if (settingsRepository.current().cloudAutoUploadEnabled) {
+                    backupManager.syncCloud().onFailure { e ->
+                        _userMessage.value =
+                            e.message?.let { "Saved locally, but cloud sync failed: $it" }
+                                ?: "Saved locally, but cloud sync failed"
+                    }
                 }
             }.onFailure { e ->
                 _userMessage.value = e.message ?: "Couldn't save readings"
@@ -268,15 +340,15 @@ class MainViewModel(
     }
 
 
-    fun revertLastGroup() {
+    fun softDeleteRechargeGroup(groupId: String) {
         viewModelScope.launch {
             val roomId = settings.value.activeRoomId ?: return@launch
             _busy.value = true
             runCatching {
-                repository.revertLastGroup(roomId)
-                _userMessage.value = "Last entry group reverted"
+                backupManager.softDeleteRechargeAndSync(roomId, groupId).getOrThrow()
+                _userMessage.value = "Recharge marked deleted — others will see it on sync"
             }.onFailure { e ->
-                _userMessage.value = e.message ?: "Couldn't revert"
+                _userMessage.value = e.message ?: "Couldn't delete"
             }
             _busy.value = false
         }
@@ -285,6 +357,18 @@ class MainViewModel(
     fun shareBalances(context: android.content.Context) {
         val dash = dashboard.value ?: return
         ShareUtils.shareText(context, repository.buildShareText(dash))
+    }
+
+    fun inviteToRoom(context: android.content.Context) {
+        viewModelScope.launch {
+            val id = settingsRepository.current().supportId.trim()
+            if (id.isBlank()) {
+                _userMessage.value = "Room ID is not set yet"
+                return@launch
+            }
+            val roomName = dashboard.value?.roomName
+            ShareUtils.shareInvite(context, roomId = id, roomName = roomName)
+        }
     }
 
     fun exportLocalBackup(uri: Uri, password: CharArray? = null) {
@@ -308,7 +392,27 @@ class MainViewModel(
         viewModelScope.launch {
             _busy.value = true
             backupManager.syncCloud()
-                .onSuccess { count -> _userMessage.value = "Cloud synced ($count records)" }
+                .onSuccess { result ->
+                    if (result.newlyDeletedEntries.isNotEmpty()) {
+                        backupManager.markDeletionsNotified(
+                            result.newlyDeletedEntries.map { it.id }
+                        )
+                    }
+                    _userMessage.value = when {
+                        result.newlyDeletedEntries.isNotEmpty() -> {
+                            val n = result.newlyDeletedEntries
+                                .map { it.groupId }
+                                .distinct()
+                                .size
+                            "Synced — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+                        }
+                        result.newEntries.isNotEmpty() -> {
+                            val groups = result.newEntries.map { it.groupId }.distinct().size
+                            "Synced — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                        }
+                        else -> "Cloud synced (${result.recordCount} records)"
+                    }
+                }
                 .onFailure { e -> _userMessage.value = e.message ?: "Cloud sync failed" }
             _busy.value = false
         }
@@ -335,16 +439,19 @@ class MainViewModel(
     }
 
     fun setCrashReporting(enabled: Boolean) {
+        if (!BuildConfig.IS_FDROID) return
         viewModelScope.launch {
             settingsRepository.update { it.copy(crashReportingEnabled = enabled) }
             com.anant.splitbill.crash.CrashReporter.setReportingEnabled(enabled)
         }
     }
 
-    fun unlockDeveloperMode() {
+    fun setDeveloperModeUnlocked(unlocked: Boolean) {
         viewModelScope.launch {
-            settingsRepository.update { it.copy(developerModeUnlocked = true) }
-            _showEasterEgg.value = true
+            val was = settingsRepository.current().developerModeUnlocked
+            if (was == unlocked) return@launch
+            settingsRepository.update { it.copy(developerModeUnlocked = unlocked) }
+            if (unlocked) _showEasterEgg.value = true
         }
     }
 
@@ -374,6 +481,7 @@ class MainViewModel(
                     mongoCollectionName = collectionName.ifBlank { AppSettings.DEFAULT_MONGO_COLLECTION },
                 )
             }
+            _userMessage.value = "Atlas overrides saved"
         }
     }
 
@@ -388,9 +496,40 @@ class MainViewModel(
     }
 
     fun setCloudAutoUploadEnabled(enabled: Boolean) {
-        if (!enabled) return
         viewModelScope.launch {
-            settingsRepository.update { it.copy(cloudAutoUploadEnabled = true) }
+            settingsRepository.update { it.copy(cloudAutoUploadEnabled = enabled) }
+            _userMessage.value = if (enabled) {
+                "Auto cloud sync enabled"
+            } else {
+                "Auto cloud sync off — use Pull or Sync now manually"
+            }
+        }
+    }
+
+    fun pullCloudChanges() {
+        viewModelScope.launch {
+            _busy.value = true
+            backupManager.pullLatestFromCloud()
+                .onSuccess { result ->
+                    if (result.newlyDeletedEntries.isNotEmpty()) {
+                        backupManager.markDeletionsNotified(
+                            result.newlyDeletedEntries.map { it.id }
+                        )
+                    }
+                    _userMessage.value = when {
+                        result.newlyDeletedEntries.isNotEmpty() -> {
+                            val n = result.newlyDeletedEntries.map { it.groupId }.distinct().size
+                            "Pulled — $n deleted recharge${if (n == 1) "" else "s"} from cloud"
+                        }
+                        result.newEntries.isNotEmpty() -> {
+                            val groups = result.newEntries.map { it.groupId }.distinct().size
+                            "Pulled — $groups new update${if (groups == 1) "" else "s"} from cloud"
+                        }
+                        else -> "Pulled from cloud — already up to date"
+                    }
+                }
+                .onFailure { e -> _userMessage.value = e.message ?: "Cloud pull failed" }
+            _busy.value = false
         }
     }
 
@@ -398,6 +537,208 @@ class MainViewModel(
         viewModelScope.launch {
             backupManager.setCloudPassword(password)
             _userMessage.value = "Cloud backup password saved"
+        }
+    }
+
+    private val _updateState = MutableStateFlow(UpdateUiState())
+    val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
+
+    fun checkForUpdates(currentVersionCode: Int, silent: Boolean = false) {
+        if (BuildConfig.IS_FDROID) return
+        if (_updateState.value.isChecking) return
+        viewModelScope.launch {
+            _updateState.update {
+                it.copy(
+                    isChecking = true,
+                    statusMessage = if (silent) it.statusMessage else null,
+                    statusIsError = if (silent) it.statusIsError else false,
+                )
+            }
+            when (val result = updateChecker.checkForUpdate(currentVersionCode)) {
+                is UpdateCheckResult.Available -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = result,
+                        statusMessage = null,
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        pendingDownloadFileName = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false,
+                    )
+                }
+                UpdateCheckResult.UpToDate -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else "You're on the latest version",
+                        statusIsError = false,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        pendingDownloadFileName = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false,
+                    )
+                }
+                is UpdateCheckResult.Error -> _updateState.update {
+                    it.copy(
+                        isChecking = false,
+                        updateInfo = null,
+                        statusMessage = if (silent) null else result.message,
+                        statusIsError = !silent,
+                        backupCompleted = false,
+                        isExportingBackup = false,
+                        pendingDownloadUrlAfterBackup = null,
+                        pendingDownloadFileName = null,
+                        backupStatusMessage = null,
+                        backupStatusIsError = false,
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissUpdatePrompt() {
+        val state = _updateState.value
+        if (state.isExportingBackup) return
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = null,
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                pendingDownloadUrlAfterBackup = null,
+                pendingDownloadFileName = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false,
+            )
+        }
+    }
+
+    fun onUpdateDownloadStarted() {
+        _updateState.update {
+            it.copy(
+                updateInfo = null,
+                statusMessage = "APK download started — check your Downloads folder",
+                statusIsError = false,
+                backupCompleted = false,
+                isExportingBackup = false,
+                pendingDownloadUrlAfterBackup = null,
+                pendingDownloadFileName = null,
+                backupStatusMessage = null,
+                backupStatusIsError = false,
+            )
+        }
+    }
+
+    fun failOpenUpdateDownload(message: String) {
+        _updateState.update {
+            it.copy(
+                statusMessage = message,
+                statusIsError = true,
+                pendingDownloadUrlAfterBackup = null,
+                pendingDownloadFileName = null,
+                backupCompleted = false,
+            )
+        }
+    }
+
+    fun setAutoCheckUpdates(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.update { it.copy(autoCheckUpdates = enabled) }
+        }
+    }
+
+    fun beginExportBackupAndUpdate(context: Context, downloadUrl: String, fileName: String) {
+        if (_updateState.value.isExportingBackup) return
+        if (_updateState.value.backupCompleted) return
+        _updateState.update {
+            it.copy(
+                pendingDownloadUrlAfterBackup = downloadUrl,
+                pendingDownloadFileName = fileName,
+                backupStatusMessage = null,
+                backupStatusIsError = false,
+            )
+        }
+        exportBackupForUpdate(context)
+    }
+
+    fun exportBackupForUpdate(context: Context) {
+        if (_updateState.value.isExportingBackup) return
+        if (_updateState.value.backupCompleted) return
+        val useCloud = settings.value.cloudBackupEnabled && MongoUriVault.isAvailable()
+        viewModelScope.launch {
+            _updateState.update {
+                it.copy(
+                    isExportingBackup = true,
+                    backupStatusMessage = null,
+                    backupStatusIsError = false,
+                )
+            }
+            val result = if (useCloud) {
+                runCatching { backupManager.pushCloud().getOrThrow() }
+            } else {
+                runCatching {
+                    val (file, count) = backupManager.exportToShareCache()
+                    BackupShare.shareJsonFile(
+                        context.applicationContext,
+                        file,
+                        chooserTitle = "Share SplitBill backup",
+                    )
+                    count
+                }
+            }
+            result
+                .onSuccess { count ->
+                    val fresh = settingsRepository.settings.first().hasFreshSuccessfulBackup()
+                    if (!fresh) {
+                        _updateState.update {
+                            it.copy(
+                                isExportingBackup = false,
+                                backupCompleted = false,
+                                pendingDownloadUrlAfterBackup = null,
+                                pendingDownloadFileName = null,
+                                backupStatusMessage = "Backup timestamp missing or too old; download cancelled",
+                                backupStatusIsError = true,
+                            )
+                        }
+                        return@onSuccess
+                    }
+                    val message = if (useCloud) {
+                        "Uploaded $count records to cloud backup"
+                    } else {
+                        "Shared $count records"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = true,
+                            backupStatusMessage = message,
+                            backupStatusIsError = false,
+                        )
+                    }
+                }
+                .onFailure { e ->
+                    val message = if (useCloud) {
+                        "Cloud upload failed: ${BackupErrorMessages.cloudRestoreFailed(e.message)}"
+                    } else {
+                        "Export failed: ${e.message}"
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isExportingBackup = false,
+                            backupCompleted = false,
+                            pendingDownloadUrlAfterBackup = null,
+                            pendingDownloadFileName = null,
+                            backupStatusMessage = message,
+                            backupStatusIsError = true,
+                        )
+                    }
+                }
         }
     }
 
@@ -410,11 +751,12 @@ class MainViewModelFactory(
     private val repository: SplitBillRepository,
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
+    private val updateChecker: UpdateChecker,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
-            return MainViewModel(repository, settingsRepository, backupManager) as T
+            return MainViewModel(repository, settingsRepository, backupManager, updateChecker) as T
         }
         throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
     }

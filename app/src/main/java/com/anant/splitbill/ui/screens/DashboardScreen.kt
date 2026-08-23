@@ -19,9 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ElectricMeter
-import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.IosShare
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,12 +45,21 @@ import com.anant.splitbill.data.model.RoomDashboard
 fun DashboardScreen(
     dashboard: RoomDashboard?,
     onRecordRecharge: () -> Unit,
-    onHistory: () -> Unit,
-    onSettings: () -> Unit,
     onShare: () -> Unit,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    if (embedded) {
+        DashboardBody(
+            dashboard = dashboard,
+            modifier = modifier,
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            bottomSpacer = 88.dp,
+        )
+        return
+    }
 
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -74,12 +81,6 @@ fun DashboardScreen(
                     IconButton(onClick = onShare) {
                         Icon(Icons.Filled.IosShare, contentDescription = "Share balances")
                     }
-                    IconButton(onClick = onHistory) {
-                        Icon(Icons.Filled.History, contentDescription = "Meter log")
-                    }
-                    IconButton(onClick = onSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
                 },
                 scrollBehavior = scrollBehavior
             )
@@ -92,48 +93,67 @@ fun DashboardScreen(
             )
         }
     ) { padding ->
-        if (dashboard == null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Filled.Bolt,
-                    contentDescription = null,
-                    modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("No room selected", style = MaterialTheme.typography.titleMedium)
-            }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+        DashboardBody(
+            dashboard = dashboard,
+            modifier = Modifier.padding(padding),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            bottomSpacer = 88.dp,
+        )
+    }
+}
+
+@Composable
+private fun DashboardBody(
+    dashboard: RoomDashboard?,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    bottomSpacer: androidx.compose.ui.unit.Dp = 24.dp,
+) {
+    if (dashboard == null) {
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item { NextRechargeHero(dashboard) }
-            item {
-                Text(
-                    text = "Balances",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
-            }
-            items(dashboard.members, key = { it.memberId }) { member ->
-                MemberBalanceRow(member)
-            }
-            item { Spacer(modifier = Modifier.height(88.dp)) }
+            Icon(
+                Icons.Filled.Bolt,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("No room selected", style = MaterialTheme.typography.titleMedium)
         }
+        return
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = contentPadding,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Prepaid meter balances",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        item { NextRechargeHero(dashboard) }
+        item {
+            Text(
+                text = "Balances",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+            )
+        }
+        items(dashboard.members, key = { it.memberId }) { member ->
+            MemberBalanceRow(member)
+        }
+        item { Spacer(modifier = Modifier.height(bottomSpacer)) }
     }
 }
 

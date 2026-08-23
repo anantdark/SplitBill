@@ -1,0 +1,176 @@
+# Publish a tagged FOSS APK for F-Droid reproducible builds (Binaries / AllowedAPKSigningKeys).
+name: F-Droid Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a GitHub Release for this build (uncheck to just build + upload artifacts for local testing)
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: fdroid-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute version
+        id: resolve
+        run: |
+          # Read current versionCode from the fdroid flavor block and increment by 1.
+          CURRENT_CODE=$(awk '/create\("fdroid"\)/,/^        \}/' app/build.gradle.kts | grep -o 'versionCode = [0-9]*' | grep -o '[0-9]*')
+          if [ -z "$CURRENT_CODE" ]; then
+            echo "::error::Could not read fdroid versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          VERSION_CODE=$(( CURRENT_CODE + 1 ))
+          MAJOR=1
+          BASE_MINOR=0
+          MINOR=$(( BASE_MINOR + VERSION_CODE / 100 ))
+          PATCH=$(( VERSION_CODE % 100 ))
+          VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${VERSION}-fdroid"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Previous versionCode: ${CURRENT_CODE}"
+          echo "Releasing F-Droid ${VERSION} (code ${VERSION_CODE}, tag ${TAG})"
+
+      - name: Bump version in build.gradle.kts
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          VERSION_CODE="${{ steps.resolve.outputs.version_code }}"
+          sed -i "/create(\"fdroid\")/,/^        }/ s/versionCode = [0-9]*/versionCode = ${VERSION_CODE}/" app/build.gradle.kts
+          sed -i "/create(\"fdroid\")/,/^        }/ s/versionName = \"[^\"]*\"/versionName = \"${VERSION}\"/" app/build.gradle.kts
+          echo "Bumped fdroid flavor to ${VERSION} (versionCode ${VERSION_CODE})"
+
+      - name: Generate changelog
+        run: |
+          VERSION_CODE="${{ steps.resolve.outputs.version_code }}"
+          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/${VERSION_CODE}.txt"
+          mkdir -p "$(dirname "$CHANGELOG_FILE")"
+          # Find the last fdroid tag to diff against.
+          PREV_TAG=$(git tag --list 'v*-fdroid' --sort=-version:refname | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD~20..HEAD"
+          fi
+          # Extract user-facing commits (skip chore/ci/merge), prefix with bullet.
+          git log "$RANGE" --pretty=format:'%s' --no-merges \
+            | grep -iv '^chore\|^ci\|^merge\|^build\|^refactor\|^style\|^test' \
+            | sed 's/^/• /' \
+            | head -15 \
+            > "$CHANGELOG_FILE"
+          # Fallback if no user-facing commits found.
+          if [ ! -s "$CHANGELOG_FILE" ]; then
+            echo "• Bug fixes and performance improvements" > "$CHANGELOG_FILE"
+          fi
+          # Trim to ~500 chars (F-Droid recommendation).
+          truncate -s '<500' "$CHANGELOG_FILE" 2>/dev/null || true
+          echo "Generated changelog for versionCode ${VERSION_CODE}:"
+          cat "$CHANGELOG_FILE"
+
+      - name: Commit and tag
+        run: |
+          VERSION="${{ steps.resolve.outputs.version }}"
+          TAG="${{ steps.resolve.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts fastlane/metadata/android/en-US/changelogs/
+          git commit -m "chore(fdroid): bump to ${VERSION} [skip ci]"
+          git tag -a "${TAG}" -m "F-Droid ${VERSION}"
+          git push origin HEAD:main --follow-tags
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Create local.properties
+        run: echo "sdk.dir=${ANDROID_HOME}" > local.properties
+
+      - name: Configure release signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_STORE_PASSWORD" ] \
+            || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "::error::Missing RELEASE_* secrets."
+            exit 1
+          fi
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > splitbill-release.jks
+          printf '%s\n' \
+            "storeFile=splitbill-release.jks" \
+            "storePassword=${RELEASE_STORE_PASSWORD}" \
+            "keyAlias=${RELEASE_KEY_ALIAS}" \
+            "keyPassword=${RELEASE_KEY_PASSWORD}" \
+            > keystore.properties
+
+      - name: Build release APK
+        run: ./gradlew :app:assembleFdroidRelease --no-daemon
+
+      - name: Upload R8 mapping (crash deobfuscation)
+        uses: actions/upload-artifact@v7
+        with:
+          name: mapping-fdroid-${{ steps.resolve.outputs.version_code }}
+          path: app/build/outputs/mapping/fdroidRelease/mapping.txt
+          retention-days: 90
+
+      - name: Upload built APK (unpublished test build)
+        if: ${{ inputs.publish == false }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: apk-fdroid-${{ steps.resolve.outputs.version_code }}
+          path: app/build/outputs/apk/fdroid/release/SplitBill-${{ steps.resolve.outputs.version }}.apk
+          retention-days: 14
+
+      # Do NOT own GitHub "Latest" — site + in-app updater use CI tags (v*-buildN).
+      # F-Droid installs via Binaries URL on this tag, not /releases/latest.
+      - name: Create GitHub Release
+        if: ${{ inputs.publish != false }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.resolve.outputs.tag }}
+          name: SplitBill ${{ steps.resolve.outputs.version }} (F-Droid)
+          body: |
+            FOSS build for F-Droid reproducible builds.
+
+            - **versionName:** ${{ steps.resolve.outputs.version }}
+            - **versionCode:** ${{ steps.resolve.outputs.version_code }}
+            - **tag:** `${{ steps.resolve.outputs.tag }}`
+            - Signed with the SplitBill release key (`AllowedAPKSigningKeys`).
+
+            Not for sideload / website downloads — use a `v*-buildN` GitHub Release for those.
+          draft: false
+          prerelease: true
+          make_latest: false
+          files: |
+            app/build/outputs/apk/fdroid/release/SplitBill-${{ steps.resolve.outputs.version }}.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

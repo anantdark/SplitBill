@@ -1,0 +1,132 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5.7.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Create local.properties
+        run: echo "sdk.dir=${ANDROID_HOME}" >> local.properties
+
+      # Stable signing is required. Without these secrets, each runner uses a
+      # different debug keystore and in-app updates break between releases.
+      - name: Configure release signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ] || [ -z "$RELEASE_STORE_PASSWORD" ] \
+            || [ -z "$RELEASE_KEY_ALIAS" ] || [ -z "$RELEASE_KEY_PASSWORD" ]; then
+            echo "::error::Missing RELEASE_* secrets. Add RELEASE_KEYSTORE_BASE64,"
+            echo "RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS, and RELEASE_KEY_PASSWORD"
+            echo "so every release shares one signing key."
+            exit 1
+          fi
+          echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > splitbill-release.jks
+          printf '%s\n' \
+            "storeFile=splitbill-release.jks" \
+            "storePassword=${RELEASE_STORE_PASSWORD}" \
+            "keyAlias=${RELEASE_KEY_ALIAS}" \
+            "keyPassword=${RELEASE_KEY_PASSWORD}" \
+            > keystore.properties
+          echo "Release signing configured (stable keystore)."
+
+      - name: Compute version metadata
+        id: version
+        run: |
+          MAJOR=1
+          BASE_MINOR=0
+          MINOR=$(( BASE_MINOR + GITHUB_RUN_NUMBER / 100 ))
+          PATCH=$(( GITHUB_RUN_NUMBER % 100 ))
+          VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
+          TAG="v${VERSION_NAME}-build${GITHUB_RUN_NUMBER}"
+          echo "build_number=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_CODE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        # Sentry DSN and the cloud-backup API key are committed obfuscated in
+        # build.gradle.kts — no secrets needed here. GitHub Releases ship the
+        # github flavor; F-Droid builds its own fdroid flavor from the fdroid workflow.
+        run: >
+          ./gradlew :app:assembleGithubRelease :app:bundleGithubRelease --no-daemon
+          -PappVersionCode=${{ steps.version.outputs.version_code }}
+          -PappVersionName=${{ steps.version.outputs.version_name }}
+
+      # Stable name so the website can always use:
+      # https://github.com/.../releases/latest/download/SplitBill-latest.apk
+      - name: Publish stable latest APK alias
+        run: |
+          VERSIONED="app/build/outputs/apk/github/release/SplitBill-${{ steps.version.outputs.version_name }}.apk"
+          cp "$VERSIONED" app/build/outputs/apk/github/release/SplitBill-latest.apk
+
+      - name: Prepare release notes
+        id: notes
+        run: |
+          {
+            echo "notes<<EOF"
+            echo "## SplitBill ${VERSION_NAME} (build ${BUILD_NUMBER})"
+            echo
+            echo "**Version code:** ${VERSION_CODE}"
+            echo "**Commit:** [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA})"
+            echo
+            echo "### Recent commits"
+            git log -10 --pretty=format:'- %s (%h)' --no-merges
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+
+      # make_latest: true — this channel owns /releases/latest (site + in-app updates).
+      # F-Droid tags use a separate workflow with make_latest: false.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: SplitBill ${{ steps.version.outputs.version_name }} (build ${{ steps.version.outputs.build_number }})
+          body: ${{ steps.notes.outputs.notes }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          generate_release_notes: false
+          files: |
+            app/build/outputs/apk/github/release/SplitBill-${{ steps.version.outputs.version_name }}.apk
+            app/build/outputs/apk/github/release/SplitBill-latest.apk
+            app/build/outputs/bundle/githubRelease/app-github-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

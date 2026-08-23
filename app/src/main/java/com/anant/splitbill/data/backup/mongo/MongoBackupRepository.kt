@@ -24,6 +24,9 @@ data class CloudBackupDoc(
     val chunkId: String,
     val payloadJson: String,
     val exportedAt: Long,
+    val deviceCount: Int = 0,
+    val devicesJson: String = "[]",
+    val auditLogJson: String = "[]",
 )
 
 open class MongoBackupRepository(
@@ -38,7 +41,12 @@ open class MongoBackupRepository(
         payloadJson: String,
         exportedAt: Long,
         deviceName: String,
-        macId: String
+        macId: String,
+        deviceCount: Int = 1,
+        devicesJson: String = "[]",
+        auditLogJson: String = "[]",
+        lastAction: String = "",
+        lastActionByMember: String = "",
     ) = withContext(Dispatchers.IO) {
         val id = supportId.trim()
         require(id.isNotBlank()) { "Support ID is blank — cannot upload backup" }
@@ -57,6 +65,11 @@ open class MongoBackupRepository(
             .put("storageVersion", 2)
             .put("nextChunkId", JSONObject.NULL)
             .put("tipChunkId", id)
+            .put("deviceCount", deviceCount.coerceAtLeast(0))
+            .put("devicesJson", devicesJson.take(50_000))
+            .put("auditLogJson", auditLogJson.take(100_000))
+            .put("lastAction", lastAction.trim().take(64))
+            .put("lastActionByMember", lastActionByMember.trim().take(128))
             .toString()
             .toRequestBody(JSON_MEDIA_TYPE)
 
@@ -119,6 +132,9 @@ open class MongoBackupRepository(
                 chunkId = json.optString("chunkId").ifBlank { id },
                 payloadJson = payload,
                 exportedAt = json.optLong("exportedAt", 0L),
+                deviceCount = json.optInt("deviceCount", 0),
+                devicesJson = json.optString("devicesJson", "[]"),
+                auditLogJson = json.optString("auditLogJson", "[]"),
             )
         }
     }

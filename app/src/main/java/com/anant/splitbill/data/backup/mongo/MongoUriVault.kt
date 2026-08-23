@@ -14,7 +14,7 @@ object MongoUriVault {
     fun isAvailable(): Boolean = BuildConfig.BACKUP_API_KEY_BLOB.isNotBlank()
 
     fun databaseName(): String =
-        BuildConfig.MONGO_DB_NAME.trim().ifBlank { "splitbill" }
+        BuildConfig.MONGO_DB_NAME.trim().ifBlank { "fitbuddy" }
 
     fun baseUrl(): String =
         BuildConfig.CLOUD_BACKUP_BASE_URL.trim().trimEnd('/')

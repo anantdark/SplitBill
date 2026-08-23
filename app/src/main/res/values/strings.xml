@@ -7,4 +7,6 @@
     <string name="backup_export">Export local backup</string>
     <string name="backup_import">Import local backup</string>
     <string name="widget_next_recharge">Next top-up: %1$s</string>
+    <string name="sync_channel_name">Room sync</string>
+    <string name="sync_channel_description">Alerts when new meter logs or recharges arrive from the cloud</string>
 </resources>

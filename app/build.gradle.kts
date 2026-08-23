@@ -16,15 +16,16 @@ val localProperties = Properties().apply {
 val sentryDsnMaskSeed = localProperties.getProperty("SPLITBILL_SENTRY_DSN_MASK", "splitbill.sentry.v1")
 val sentryDsnBlobEscaped = localProperties.getProperty("SPLITBILL_SENTRY_DSN_BLOB", "")
 
-// Cloud backup proxy (same HTTPS-proxy pattern as FitBuddy). App never holds Atlas creds.
+// Cloud backup proxy — same Vercel endpoint + obfuscated API key as FitBuddy.
+// The proxy key only grants read/upsert-by-id (no delete). Atlas creds never ship in the app.
 val cloudBackupBaseUrlRaw: String =
     System.getenv("CLOUD_BACKUP_BASE_URL")
         ?: localProperties.getProperty("CLOUD_BACKUP_BASE_URL", "https://fitbuddy-cloud-backup.vercel.app")
-val backupApiKeyMaskSeed = localProperties.getProperty("SPLITBILL_BACKUP_API_KEY_MASK", "splitbill.backup.v1")
-val backupApiKeyBlobEscaped = localProperties.getProperty("SPLITBILL_BACKUP_API_KEY_BLOB", "")
+val backupApiKeyMaskSeed = "fitbuddy.backup.v1"
+val backupApiKeyBlobEscaped = "VFlMVkBTUkBIVVACWxQSSxUFBwxMV0MAVxobVAcCCBQVT0QEUQ1MB0IFBh0eU1hTChZHGRMEB11HWhECBk4fWg=="
 val mongoDbNameRaw: String =
     System.getenv("MONGO_DB_NAME")
-        ?: localProperties.getProperty("MONGO_DB_NAME", "splitbill")
+        ?: localProperties.getProperty("MONGO_DB_NAME", "fitbuddy")
 
 fun escapeBuildConfig(value: String): String =
     value.replace("\\", "\\\\").replace("\"", "\\\"")
@@ -170,6 +171,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.converter.moshi)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)

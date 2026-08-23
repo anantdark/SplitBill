@@ -57,6 +57,9 @@ data class EntryEntity(
     /** Member this row belongs to (reading / payer for recharge or expense). */
     val memberId: String?,
     val memberName: String,
+    /** Household member who logged this row on their device. */
+    val loggedByMemberId: String? = null,
+    val loggedByMemberName: String? = null,
     /** Meter reading (READING) or rupee amount (RECHARGE / EXPENSE). */
     val value: Double,
     /** Units consumed since previous reading (READING only). */
@@ -66,5 +69,12 @@ data class EntryEntity(
     /** Groups READING+RECHARGE recorded together (and equal-split EXPENSE rows). */
     val groupId: String,
     /** Snapshot of all balances after this row, encoded as "Name: Rs.12.34; …". */
-    val balancesSnapshot: String
+    val balancesSnapshot: String,
+    /** Soft-delete — kept for audit / cloud sync; hidden from live balances. */
+    val deleted: Boolean = false,
+    val deletedAtEpochMs: Long? = null,
+    val deletedByMemberId: String? = null,
+    val deletedByMemberName: String? = null,
+    val deletedByDeviceId: String? = null,
+    val deletedByDeviceName: String? = null,
 )

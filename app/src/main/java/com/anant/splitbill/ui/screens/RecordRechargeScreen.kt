@@ -46,24 +46,24 @@ fun RecordRechargeScreen(
     members: List<MemberBalance>,
     currencySymbol: String,
     busy: Boolean,
+    defaultMemberId: String? = null,
     onBack: () -> Unit,
     onSubmit: (readings: Map<String, Double>, rechargeMemberId: String, rechargeAmount: Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val readings = remember { mutableStateMapOf<String, String>() }
-    var rechargeMemberId by remember(members) {
+    val readings = remember(members) {
+        mutableStateMapOf<String, String>().apply {
+            members.forEach { put(it.memberId, "") }
+        }
+    }
+    var rechargeMemberId by remember(members, defaultMemberId) {
         mutableStateOf(
-            members.firstOrNull { it.isNextToRecharge }?.memberId
+            defaultMemberId?.takeIf { id -> members.any { it.memberId == id } }
+                ?: members.firstOrNull { it.isNextToRecharge }?.memberId
                 ?: members.firstOrNull()?.memberId.orEmpty()
         )
     }
     var rechargeAmount by remember { mutableStateOf("") }
-
-    members.forEach { m ->
-        if (m.memberId !in readings) {
-            readings[m.memberId] = if (m.lastReading > 0) m.lastReading.toString() else ""
-        }
-    }
 
     val canSave = !busy &&
         rechargeMemberId.isNotBlank() &&
@@ -168,12 +168,21 @@ fun RecordRechargeScreen(
                         )
                         Column {
                             Text(member.name, style = MaterialTheme.typography.bodyLarge)
-                            if (member.isNextToRecharge) {
-                                Text(
-                                    text = "Suggested — lowest balance",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                            when {
+                                member.memberId == defaultMemberId -> {
+                                    Text(
+                                        text = "You — default",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                member.isNextToRecharge -> {
+                                    Text(
+                                        text = "Suggested — lowest balance",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }

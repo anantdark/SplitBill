@@ -46,48 +46,82 @@ object BillEngine {
             }
         )
 
-    /** Rebuild live state by replaying persisted entries (CSV load equivalent). */
+    /** Rebuild live state by replaying non-deleted entries in order. */
     fun rebuild(members: List<MemberEntity>, entries: List<EntryEntity>): RoomState {
         val ordered = members.sortedBy { it.sortOrder }
         var state = emptyState(ordered)
-        if (entries.isEmpty()) return state
+        val active = entries.filter { !it.deleted }
+        if (active.isEmpty()) return state
 
-        val lastSnap = entries.lastOrNull { it.balancesSnapshot.isNotBlank() }?.balancesSnapshot
-        if (lastSnap != null) {
-            state = state.withBalances(parseBalances(lastSnap, state))
-        }
+        val groups = active
+            .groupBy { it.groupId }
+            .entries
+            .sortedBy { (_, group) -> group.minOf { it.timestampEpochMs } }
 
-        val lastRecharge = entries.lastOrNull { it.type == EntryType.RECHARGE }
-        if (lastRecharge != null) {
-            state = state.copy(
-                lastRechargeAmount = lastRecharge.value,
-                lastRechargeMemberId = lastRecharge.memberId,
-                lastRechargeMemberName = lastRecharge.memberName
-            )
-            val rechargeIdx = entries.indexOf(lastRecharge)
-            val seen = mutableSetOf<String>()
-            val before = state.byId().toMutableMap()
-            for (i in (rechargeIdx - 1) downTo 0) {
-                val e = entries[i]
-                if (e.type == EntryType.READING && e.memberId != null && e.memberId !in seen) {
-                    before[e.memberId] = before.getValue(e.memberId).copy(
-                        lastReadingBeforeRecharge = e.value
+        for ((_, groupEntries) in groups) {
+            val readings = groupEntries.filter { it.type == EntryType.READING }
+            val recharge = groupEntries.firstOrNull { it.type == EntryType.RECHARGE }
+            val expense = groupEntries.firstOrNull { it.type == EntryType.EXPENSE }
+
+            when {
+                readings.isNotEmpty() -> {
+                    val readingMap = readings.mapNotNull { e ->
+                        val id = e.memberId ?: return@mapNotNull null
+                        id to e.value
+                    }.toMap()
+                    if (readingMap.size != ordered.size) {
+                        // Incomplete group — fall back to last snapshot in this group.
+                        val snap = groupEntries.lastOrNull { it.balancesSnapshot.isNotBlank() }
+                            ?.balancesSnapshot
+                        if (snap != null) {
+                            state = state.withBalances(parseBalances(snap, state))
+                            for (r in readings) {
+                                val mid = r.memberId ?: continue
+                                val map = state.byId().toMutableMap()
+                                if (mid in map) {
+                                    map[mid] = map.getValue(mid).copy(lastReading = r.value)
+                                    state = state.copy(members = ordered.map { map.getValue(it.id) })
+                                }
+                            }
+                            if (recharge != null) {
+                                state = state.copy(
+                                    lastRechargeAmount = recharge.value,
+                                    lastRechargeMemberId = recharge.memberId,
+                                    lastRechargeMemberName = recharge.memberName
+                                )
+                            }
+                        }
+                        continue
+                    }
+                    val result = recordReadingsAndRecharge(
+                        roomId = readings.first().roomId,
+                        members = ordered,
+                        current = state,
+                        readings = readingMap,
+                        rechargeMemberId = recharge?.memberId.orEmpty(),
+                        rechargeAmount = recharge?.value ?: 0.0,
+                        nowEpochMs = readings.minOf { it.timestampEpochMs },
+                        groupId = groupEntries.first().groupId,
                     )
-                    seen += e.memberId
-                    if (seen.size == ordered.size) break
+                    state = result.state
+                }
+                expense != null -> {
+                    val payerId = expense.memberId ?: continue
+                    val result = recordExpense(
+                        roomId = expense.roomId,
+                        members = ordered,
+                        current = state,
+                        payerId = payerId,
+                        amount = expense.value,
+                        note = expense.note,
+                        nowEpochMs = expense.timestampEpochMs,
+                        groupId = expense.groupId,
+                    )
+                    state = result.state
                 }
             }
-            state = state.copy(members = ordered.map { before.getValue(it.id) })
         }
-
-        val readings = state.byId().toMutableMap()
-        for (m in ordered) {
-            val last = entries.lastOrNull { it.type == EntryType.READING && it.memberId == m.id }
-            if (last != null) {
-                readings[m.id] = readings.getValue(m.id).copy(lastReading = last.value)
-            }
-        }
-        return state.copy(members = ordered.map { readings.getValue(it.id) })
+        return state
     }
 
     /**
@@ -104,7 +138,9 @@ object BillEngine {
         rechargeMemberId: String,
         rechargeAmount: Double,
         nowEpochMs: Long = System.currentTimeMillis(),
-        groupId: String = UUID.randomUUID().toString()
+        groupId: String = UUID.randomUUID().toString(),
+        loggedByMemberId: String? = null,
+        loggedByMemberName: String? = null,
     ): RecordResult {
         val ordered = members.sortedBy { it.sortOrder }
         require(ordered.isNotEmpty()) { "Add at least one member" }
@@ -135,6 +171,8 @@ object BillEngine {
                 type = EntryType.READING,
                 memberId = m.id,
                 memberName = m.name,
+                loggedByMemberId = loggedByMemberId,
+                loggedByMemberName = loggedByMemberName,
                 value = newVal,
                 consumption = consumption,
                 timestampEpochMs = nowEpochMs,
@@ -170,6 +208,8 @@ object BillEngine {
                 type = EntryType.RECHARGE,
                 memberId = payer.id,
                 memberName = payer.name,
+                loggedByMemberId = loggedByMemberId,
+                loggedByMemberName = loggedByMemberName,
                 value = rechargeAmount,
                 consumption = null,
                 timestampEpochMs = nowEpochMs + 1000L,
@@ -192,7 +232,9 @@ object BillEngine {
         amount: Double,
         note: String = "",
         nowEpochMs: Long = System.currentTimeMillis(),
-        groupId: String = UUID.randomUUID().toString()
+        groupId: String = UUID.randomUUID().toString(),
+        loggedByMemberId: String? = null,
+        loggedByMemberName: String? = null,
     ): RecordResult {
         require(amount > 0.0) { "Expense amount must be positive" }
         val ordered = members.sortedBy { it.sortOrder }
@@ -218,6 +260,8 @@ object BillEngine {
             type = EntryType.EXPENSE,
             memberId = payer.id,
             memberName = payer.name,
+            loggedByMemberId = loggedByMemberId,
+            loggedByMemberName = loggedByMemberName,
             value = amount,
             note = note,
             timestampEpochMs = nowEpochMs,

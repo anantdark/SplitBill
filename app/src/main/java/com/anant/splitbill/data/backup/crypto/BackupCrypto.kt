@@ -38,8 +38,24 @@ class BackupCrypto(private val moshi: Moshi) {
         return BackupFormat.UNKNOWN
     }
 
+    /**
+     * Gzip-compress [payloadJson] into a plain (`enc=none`) envelope.
+     * Used for cloud sync — no encryption.
+     */
+    suspend fun sealCompressed(payloadJson: String): String = withContext(Dispatchers.Default) {
+        val compressed = gzip(payloadJson.toByteArray(Charsets.UTF_8))
+        val envelope = BackupEnvelope(
+            splitbillBackup = ENVELOPE_VERSION,
+            enc = ENC_NONE,
+            compression = COMPRESSION_GZIP,
+            ciphertext = encode(compressed),
+        )
+        envelopeAdapter.toJson(envelope)
+    }
+
+    /** Optional AES-GCM seal for local file export when the user sets a password. */
     suspend fun seal(payloadJson: String, password: CharArray?): String = withContext(Dispatchers.Default) {
-        if (isNullOrBlank(password)) return@withContext payloadJson
+        if (isNullOrBlank(password)) return@withContext sealCompressed(payloadJson)
 
         val salt = ByteArray(SALT_BYTES).also { secureRandom.nextBytes(it) }
         val iv = ByteArray(IV_BYTES).also { secureRandom.nextBytes(it) }
