@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -65,6 +66,7 @@ import com.anant.splitbill.ui.components.OutlinedButton
 import androidx.compose.ui.text.style.TextDecoration
 import com.anant.splitbill.ui.util.dismissKeyboardOnTap
 import com.anant.splitbill.ui.viewmodel.UpdateUiState
+import com.anant.splitbill.util.SystemToast
 import kotlinx.coroutines.delay
 
 private const val DEVELOPER_UNLOCK_TAPS = 31
@@ -111,6 +113,7 @@ fun SettingsScreen(
     onTestRechargeNotification: () -> Unit = {},
     onTestDeletionNotification: () -> Unit = {},
     onTestDeletionDialog: () -> Unit = {},
+    onSwitchRoom: (String) -> Unit = {},
     embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -427,10 +430,18 @@ fun SettingsScreen(
 
             if (developerUnlocked) {
                 SettingsSection("Developer") {
+                    val devClipboard = LocalClipboardManager.current
+                    val devContext = LocalContext.current
                     Text(
                         text = "Debug tools. Tap Package 31 times again to hide this card.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Push to cloud is disabled while this card is unlocked — only pulls " +
+                            "happen, so poking around here can't overwrite real room data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
                     )
 
                     Text("Backup & identity", fontWeight = FontWeight.SemiBold)
@@ -448,6 +459,62 @@ fun SettingsScreen(
                         onClick = onRegenerateSupportId,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Regenerate Room ID") }
+
+                    if (members.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Members in this room", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Tap an ID to copy it. The ID-to-device mapping stays in cloud storage only.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        members.forEach { member ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                            ) {
+                                Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    text = member.memberId,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.clickable {
+                                        devClipboard.setText(AnnotatedString(member.memberId))
+                                        SystemToast.show(devContext, "Member ID copied")
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Switch room", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Join a different Room ID from this device. This only pulls that " +
+                            "room's data — it never pushes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    var switchRoomDraft by remember { mutableStateOf("") }
+                    OutlinedTextField(
+                        value = switchRoomDraft,
+                        onValueChange = { switchRoomDraft = it },
+                        label = { Text("Room ID") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = {
+                            val id = switchRoomDraft.trim()
+                            if (id.isNotBlank()) {
+                                onSwitchRoom(id)
+                                switchRoomDraft = ""
+                            }
+                        },
+                        enabled = !busy && switchRoomDraft.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Switch to this room") }
 
                     if (MongoUriVault.isAvailable()) {
                         Spacer(modifier = Modifier.height(8.dp))

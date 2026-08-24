@@ -92,6 +92,7 @@ fun MainShellScreen(
     onTestRechargeNotification: () -> Unit = {},
     onTestDeletionNotification: () -> Unit = {},
     onTestDeletionDialog: () -> Unit = {},
+    onSwitchRoom: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dismissKeyboard = rememberDismissKeyboard()
@@ -227,6 +228,7 @@ fun MainShellScreen(
                             onTestRechargeNotification = onTestRechargeNotification,
                             onTestDeletionNotification = onTestDeletionNotification,
                             onTestDeletionDialog = onTestDeletionDialog,
+                            onSwitchRoom = onSwitchRoom,
                             embedded = true,
                         )
                     }

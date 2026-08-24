@@ -119,16 +119,23 @@ class BackupManager(
         )
     }
 
-    /** Push current local state to cloud. No-ops when vault is unavailable. */
+    /**
+     * Push current local state to cloud. No-ops when vault is unavailable, or when
+     * Developer settings is unlocked — dev mode is pull-only, so real device data
+     * (yours or the room's) never gets overwritten by whatever a developer is
+     * poking at locally.
+     */
     suspend fun pushCloud(): Result<Int> = runCatching {
         if (!MongoUriVault.isAvailable()) return@runCatching 0
         val settings = settingsRepository.current()
+        if (settings.developerModeUnlocked) return@runCatching 0
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
         pushCloudUnlocked(supportId)
     }
 
     /**
-     * Pull latest cloud snapshot (when newer), then push local state.
+     * Pull latest cloud snapshot (when newer), then push local state — unless
+     * Developer settings is unlocked, in which case this only pulls.
      * Cloud payloads are gzip-compressed only (not encrypted).
      * [SyncCloudResult.newEntries] lists entries that arrived from the cloud on this pull.
      */
@@ -137,7 +144,11 @@ class BackupManager(
         val settings = settingsRepository.current()
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
         val pull = pullLatestUnlocked(supportId)
-        val count = pushCloudUnlocked(supportId)
+        val count = if (settings.developerModeUnlocked) {
+            countRecords(buildBackupData())
+        } else {
+            pushCloudUnlocked(supportId)
+        }
         SyncCloudResult(
             recordCount = count,
             newEntries = pull.newEntries,

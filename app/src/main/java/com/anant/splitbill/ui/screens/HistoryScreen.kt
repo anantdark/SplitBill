@@ -40,6 +40,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,6 +51,7 @@ import com.anant.splitbill.data.database.EntryEntity
 import com.anant.splitbill.data.model.EntryType
 import com.anant.splitbill.ui.components.Button
 import com.anant.splitbill.ui.components.MemberUsageBarChart
+import com.anant.splitbill.util.SystemToast
 import com.anant.splitbill.ui.components.MonthlyUsageBarChart
 import com.anant.splitbill.ui.components.UsageChartCard
 import java.text.SimpleDateFormat
@@ -73,6 +77,8 @@ fun HistoryScreen(
 ) {
     var filter by remember { mutableStateOf(HistoryFilter.Usage) }
     var pendingDeleteGroupId by remember { mutableStateOf<String?>(null) }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     val usageSummary = remember(entries) { UsageAnalytics.summarize(entries) }
     val weekAgo = remember { System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L }
     val latestRecharge = remember(entries) {
@@ -207,11 +213,26 @@ fun HistoryScreen(
                                                     entry.loggedByMemberName
                                                         ?.takeIf { it.isNotBlank() }
                                                         ?.let { name ->
-                                                            Text(
-                                                                text = "Added by $name",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            )
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Text(
+                                                                    text = "Added by $name",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                )
+                                                                entry.loggedByMemberId
+                                                                    ?.takeIf { it.isNotBlank() }
+                                                                    ?.let { id ->
+                                                                        Text(
+                                                                            text = " · ${truncateId(id)}",
+                                                                            style = MaterialTheme.typography.labelSmall,
+                                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                            modifier = Modifier.clickable {
+                                                                                clipboard.setText(AnnotatedString(id))
+                                                                                SystemToast.show(context, "Member ID copied")
+                                                                            }
+                                                                        )
+                                                                    }
+                                                            }
                                                         }
                                                     entry.note
                                                         .takeIf { it.isNotBlank() }
@@ -370,3 +391,7 @@ private fun formatEntryLine(entry: EntryEntity, currencySymbol: String): String 
 private fun formatUnits(value: Double): String =
     if (value == value.toLong().toDouble()) value.toLong().toString()
     else "%.1f".format(value)
+
+/** Short, tappable form of a member ID — full ID copies to clipboard on tap. */
+private fun truncateId(id: String): String =
+    if (id.length <= 8) id else "${id.take(8)}…"

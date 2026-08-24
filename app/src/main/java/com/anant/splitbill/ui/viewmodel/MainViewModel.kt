@@ -14,6 +14,7 @@ import com.anant.splitbill.crash.HeartbeatKind
 import com.anant.splitbill.data.backup.BackupErrorMessages
 import com.anant.splitbill.data.backup.BackupImportResult
 import com.anant.splitbill.data.backup.BackupManager
+import com.anant.splitbill.data.backup.RoomSyncMeta
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.database.EntryEntity
 import com.anant.splitbill.data.model.EntryType
@@ -28,6 +29,7 @@ import com.anant.splitbill.sync.DeletionAlertCenter
 import com.anant.splitbill.sync.SyncNotifier
 import com.anant.splitbill.ui.screens.MainTab
 import com.anant.splitbill.util.BackupShare
+import com.anant.splitbill.util.DeviceIdentity
 import com.anant.splitbill.util.ShareUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -372,6 +374,7 @@ class MainViewModel(
     }
 
     fun recordReadingsAndRecharge(
+        context: Context,
         readings: Map<String, Double>,
         rechargeMemberId: String,
         rechargeAmount: Double,
@@ -392,6 +395,9 @@ class MainViewModel(
                     loggedByMemberId = self?.memberId,
                     loggedByMemberName = self?.name,
                 )
+                if (rechargeAmount > 0.0) {
+                    recordRechargeAudit(context, rechargeMemberId, rechargeAmount, note)
+                }
                 _destination.value = AppDestination.Main
                 _mainTab.value = MainTab.Home
                 if (settingsRepository.current().cloudAutoUploadEnabled) {
@@ -405,6 +411,56 @@ class MainViewModel(
                 _userMessage.value = e.message ?: "Couldn't save readings"
             }
             _busy.value = false
+        }
+    }
+
+    /**
+     * Cloud-only audit trail for who topped up from this device — mirrors the web
+     * backend's ip/ua/lang/tz/screen record. Never surfaced in the app UI.
+     */
+    private suspend fun recordRechargeAudit(
+        context: Context,
+        rechargeMemberId: String,
+        rechargeAmount: Double,
+        note: String,
+    ) {
+        val payer = dashboard.value?.members?.firstOrNull { it.memberId == rechargeMemberId }
+        val deviceId = DeviceIdentity.macId(context)
+        val deviceName = DeviceIdentity.deviceName(context)
+        val current = settingsRepository.current()
+        val devices = RoomSyncMeta.upsertDevice(
+            existing = RoomSyncMeta.decodeDevices(current.roomDevicesJson),
+            deviceId = deviceId,
+            deviceName = deviceName,
+            memberId = payer?.memberId,
+            memberName = payer?.name,
+        )
+        val ip = DeviceIdentity.fetchPublicIp()
+        val detail = buildString {
+            append(payer?.name.orEmpty())
+            append(" ")
+            append(rechargeAmount)
+            if (note.isNotBlank()) append("; note=\"$note\"")
+            append("; ip=${ip ?: "unknown"}")
+            append("; ")
+            append(DeviceIdentity.fingerprint(context))
+            append("; device=")
+            append(deviceId)
+        }
+        val audit = RoomSyncMeta.appendAudit(
+            existing = RoomSyncMeta.decodeAudit(current.auditLogJson),
+            action = "record_recharge_app",
+            deviceId = deviceId,
+            deviceName = deviceName,
+            memberId = payer?.memberId,
+            memberName = payer?.name,
+            detail = detail,
+        )
+        settingsRepository.update {
+            it.copy(
+                auditLogJson = RoomSyncMeta.encodeAudit(audit),
+                roomDevicesJson = RoomSyncMeta.encodeDevices(devices),
+            )
         }
     }
 

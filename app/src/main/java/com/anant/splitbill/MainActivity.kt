@@ -237,7 +237,8 @@ private fun SplitBillNavHost(
                     onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
                     onTestRechargeNotification = { viewModel.testRechargeNotification(context) },
                     onTestDeletionNotification = { viewModel.testDeletionNotification(context) },
-                    onTestDeletionDialog = viewModel::testDeletionDialog
+                    onTestDeletionDialog = viewModel::testDeletionDialog,
+                    onSwitchRoom = viewModel::joinRoom
                 )
                 AppDestination.RecordRecharge -> RecordRechargeScreen(
                     members = dashboard?.members.orEmpty(),
@@ -245,7 +246,9 @@ private fun SplitBillNavHost(
                     busy = busy,
                     defaultMemberId = settings.defaultMemberId,
                     onBack = viewModel::goHome,
-                    onSubmit = viewModel::recordReadingsAndRecharge
+                    onSubmit = { readings, memberId, amount, note ->
+                        viewModel.recordReadingsAndRecharge(context, readings, memberId, amount, note)
+                    }
                 )
                 AppDestination.PickDefaultMember -> {
                     val members = dashboard?.members.orEmpty()
