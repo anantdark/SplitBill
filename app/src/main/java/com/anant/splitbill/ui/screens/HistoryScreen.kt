@@ -20,11 +20,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -169,88 +179,155 @@ fun HistoryScreen(
                                 .weight(1f)
                                 .fillMaxWidth(),
                             contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(grouped, key = { it.key }) { (groupId, groupEntries) ->
                                 val ts = groupEntries.maxOf { it.timestampEpochMs }
                                 val recharge = groupEntries.firstOrNull { it.type == EntryType.RECHARGE }
+                                val lineItems = groupEntries
+                                    .filter { it.type != EntryType.RECHARGE }
+                                    .sortedBy { it.memberName }
+                                val loggedByName = groupEntries.firstNotNullOfOrNull {
+                                    it.loggedByMemberName?.takeIf { n -> n.isNotBlank() }
+                                }
+                                val loggedById = groupEntries.firstNotNullOfOrNull {
+                                    it.loggedByMemberId?.takeIf { id -> id.isNotBlank() }
+                                }
+                                val noteText = groupEntries.firstNotNullOfOrNull {
+                                    it.note.takeIf { n -> n.isNotBlank() }
+                                }
                                 val canDelete = filter != HistoryFilter.Deleted &&
                                     canDeleteLatest &&
                                     groupId == latestRechargeGroupId
-                                Card(modifier = Modifier.fillMaxWidth()) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        Text(
-                                            text = dateFormat.format(Date(ts)),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        if (filter == HistoryFilter.Deleted && recharge != null) {
-                                            Text(
-                                                text = "Deleted by ${recharge.deletedByMemberName ?: "unknown"}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.padding(top = 4.dp)
-                                            )
+                                var expanded by remember(groupId) { mutableStateOf(false) }
+
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (filter == HistoryFilter.Deleted) {
+                                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                                        } else {
+                                            CardDefaults.cardColors().containerColor
                                         }
-                                        groupEntries
-                                            .sortedBy { it.timestampEpochMs }
-                                            .filter { entry ->
-                                                filter == HistoryFilter.Deleted ||
-                                                    entry.type == EntryType.RECHARGE ||
-                                                    entry.type == EntryType.READING
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (recharge != null) {
+                                                Icon(
+                                                    Icons.Filled.Bolt,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
                                             }
-                                            .forEach { entry ->
-                                                Column(modifier = Modifier.padding(top = 4.dp)) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = recharge?.let {
+                                                        "$currencySymbol${"%.2f".format(it.value)}"
+                                                    } ?: "Meter reading",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                if (recharge != null) {
                                                     Text(
-                                                        text = formatEntryLine(entry, currencySymbol),
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        fontWeight = if (entry.type == EntryType.RECHARGE) {
-                                                            FontWeight.SemiBold
-                                                        } else {
-                                                            FontWeight.Normal
-                                                        },
+                                                        text = recharge.memberName,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
-                                                    entry.loggedByMemberName
-                                                        ?.takeIf { it.isNotBlank() }
-                                                        ?.let { name ->
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Text(
-                                                                    text = "Added by $name",
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                )
-                                                                entry.loggedByMemberId
-                                                                    ?.takeIf { it.isNotBlank() }
-                                                                    ?.let { id ->
-                                                                        Text(
-                                                                            text = " · ${truncateId(id)}",
-                                                                            style = MaterialTheme.typography.labelSmall,
-                                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                            modifier = Modifier.clickable {
-                                                                                clipboard.setText(AnnotatedString(id))
-                                                                                SystemToast.show(context, "Member ID copied")
-                                                                            }
-                                                                        )
-                                                                    }
-                                                            }
-                                                        }
-                                                    entry.note
-                                                        .takeIf { it.isNotBlank() }
-                                                        ?.let { note ->
-                                                            Text(
-                                                                text = "“$note”",
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            )
-                                                        }
                                                 }
                                             }
+                                            Text(
+                                                text = dateFormat.format(Date(ts)),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        if (filter == HistoryFilter.Deleted) {
+                                            Text(
+                                                text = "Deleted by ${recharge?.deletedByMemberName ?: "unknown"}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.error,
+                                                modifier = Modifier.padding(top = 6.dp)
+                                            )
+                                        }
+
+                                        if (loggedByName != null || noteText != null) {
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            if (loggedByName != null) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "Added by $loggedByName",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                    loggedById?.let { id ->
+                                                        Text(
+                                                            text = " · ${truncateId(id)}",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.clickable {
+                                                                clipboard.setText(AnnotatedString(id))
+                                                                SystemToast.show(context, "Member ID copied")
+                                                            }
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            noteText?.let { note ->
+                                                Text(
+                                                    text = "“$note”",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                            }
+                                        }
+
+                                        if (lineItems.isNotEmpty()) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 10.dp)
+                                                    .clickable { expanded = !expanded }
+                                            ) {
+                                                Text(
+                                                    text = "Meter readings (${lineItems.size})",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+                                                Icon(
+                                                    if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                                    contentDescription = if (expanded) "Collapse" else "Expand",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                            AnimatedVisibility(
+                                                visible = expanded,
+                                                enter = fadeIn() + expandVertically(),
+                                                exit = fadeOut() + shrinkVertically(),
+                                            ) {
+                                                Column(modifier = Modifier.padding(top = 4.dp)) {
+                                                    lineItems.forEach { entry ->
+                                                        Text(
+                                                            text = formatEntryLine(entry, currencySymbol),
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            modifier = Modifier.padding(vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+
                                         if (canDelete) {
                                             Button(
                                                 onClick = { pendingDeleteGroupId = groupId },
                                                 enabled = !busy,
                                                 modifier = Modifier
-                                                    .padding(top = 8.dp)
+                                                    .padding(top = 10.dp)
                                                     .fillMaxWidth(),
                                                 colors = ButtonDefaults.buttonColors(
                                                     containerColor = MaterialTheme.colorScheme.error,
