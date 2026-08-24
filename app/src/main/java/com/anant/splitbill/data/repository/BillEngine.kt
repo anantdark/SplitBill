@@ -142,6 +142,7 @@ object BillEngine {
         groupId: String = UUID.randomUUID().toString(),
         loggedByMemberId: String? = null,
         loggedByMemberName: String? = null,
+        loggedByDeviceId: String? = null,
     ): RecordResult {
         val ordered = members.sortedBy { it.sortOrder }
         require(ordered.isNotEmpty()) { "Add at least one member" }
@@ -174,6 +175,7 @@ object BillEngine {
                 memberName = m.name,
                 loggedByMemberId = loggedByMemberId,
                 loggedByMemberName = loggedByMemberName,
+                loggedByDeviceId = loggedByDeviceId,
                 value = newVal,
                 consumption = consumption,
                 timestampEpochMs = nowEpochMs,
@@ -211,6 +213,7 @@ object BillEngine {
                 memberName = payer.name,
                 loggedByMemberId = loggedByMemberId,
                 loggedByMemberName = loggedByMemberName,
+                loggedByDeviceId = loggedByDeviceId,
                 value = rechargeAmount,
                 consumption = null,
                 note = note,

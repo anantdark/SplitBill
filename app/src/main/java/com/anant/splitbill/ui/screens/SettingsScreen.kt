@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
@@ -54,6 +55,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anant.splitbill.BuildConfig
+import com.anant.splitbill.data.backup.RoomDevice
+import com.anant.splitbill.data.backup.RoomSyncMeta
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.model.MemberBalance
 import com.anant.splitbill.data.model.ThemeMode
@@ -464,26 +467,54 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Members in this room", fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = "Tap an ID to copy it. The ID-to-device mapping stays in cloud storage only.",
+                            text = "Tap an ID to copy it. A member's ID is fixed (it's what balances are " +
+                                "tracked against) — but the same member can log in from several devices, " +
+                                "listed below them.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        val devices = remember(settings.roomDevicesJson) {
+                            RoomSyncMeta.decodeDevices(settings.roomDevicesJson)
+                        }
                         members.forEach { member ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                            ) {
-                                Text(member.name, style = MaterialTheme.typography.bodyMedium)
-                                Text(
-                                    text = member.memberId,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.clickable {
-                                        devClipboard.setText(AnnotatedString(member.memberId))
-                                        SystemToast.show(devContext, "Member ID copied")
+                            val memberDevices = devices
+                                .filter { it.memberId == member.memberId }
+                                .sortedByDescending { it.lastSeenAtEpochMs }
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(member.name, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        text = member.memberId,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.clickable {
+                                            devClipboard.setText(AnnotatedString(member.memberId))
+                                            SystemToast.show(devContext, "Member ID copied")
+                                        }
+                                    )
+                                }
+                                if (memberDevices.isEmpty()) {
+                                    Text(
+                                        text = "No devices seen yet",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 12.dp, top = 2.dp)
+                                    )
+                                } else {
+                                    memberDevices.forEach { device ->
+                                        DeviceRow(
+                                            device = device,
+                                            onCopyId = {
+                                                devClipboard.setText(AnnotatedString(device.deviceId))
+                                                SystemToast.show(devContext, "Device ID copied")
+                                            }
+                                        )
                                     }
-                                )
+                                }
                             }
                         }
                     }
@@ -766,6 +797,52 @@ private fun AboutLinkRow(label: String, value: String, url: String) {
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.primary
         )
+    }
+}
+
+@Composable
+private fun DeviceRow(device: RoomDevice, onCopyId: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, top = 2.dp)
+    ) {
+        Icon(
+            Icons.Filled.Devices,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        Spacer(modifier = Modifier.size(6.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = device.deviceName.ifBlank { "Unknown device" },
+                style = MaterialTheme.typography.labelSmall,
+            )
+            Text(
+                text = relativeLastSeen(device.lastSeenAtEpochMs),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = device.deviceId.take(8) + if (device.deviceId.length > 8) "…" else "",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.clickable(onClick = onCopyId)
+        )
+    }
+}
+
+private fun relativeLastSeen(epochMs: Long): String {
+    if (epochMs <= 0L) return "last seen unknown"
+    val diffMin = (System.currentTimeMillis() - epochMs).coerceAtLeast(0) / 60_000
+    return "last seen " + when {
+        diffMin < 1 -> "just now"
+        diffMin < 60 -> "${diffMin}m ago"
+        diffMin < 60 * 24 -> "${diffMin / 60}h ago"
+        else -> "${diffMin / (60 * 24)}d ago"
     }
 }
 

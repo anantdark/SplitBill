@@ -152,6 +152,7 @@ class SplitBillRepository(private val context: Context) {
         note: String = "",
         loggedByMemberId: String? = null,
         loggedByMemberName: String? = null,
+        loggedByDeviceId: String? = null,
     ) = withContext(Dispatchers.IO) {
         val members = memberDao.getMembers(roomId)
         val entries = entryDao.getEntries(roomId)
@@ -166,6 +167,7 @@ class SplitBillRepository(private val context: Context) {
             note = note,
             loggedByMemberId = loggedByMemberId,
             loggedByMemberName = loggedByMemberName,
+            loggedByDeviceId = loggedByDeviceId,
         )
         entryDao.insertAll(result.entries)
         BalanceWidgetReceiver.requestUpdate(context)

@@ -26,11 +26,18 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonOff
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -50,14 +57,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.content.Context
 import com.anant.splitbill.data.analytics.UsageAnalytics
 import com.anant.splitbill.data.database.EntryEntity
+import com.anant.splitbill.data.model.DeletionRules
 import com.anant.splitbill.data.model.EntryType
 import com.anant.splitbill.ui.components.Button
 import com.anant.splitbill.ui.components.MemberUsageBarChart
@@ -190,8 +204,11 @@ fun HistoryScreen(
                                 val loggedByName = groupEntries.firstNotNullOfOrNull {
                                     it.loggedByMemberName?.takeIf { n -> n.isNotBlank() }
                                 }
-                                val loggedById = groupEntries.firstNotNullOfOrNull {
-                                    it.loggedByMemberId?.takeIf { id -> id.isNotBlank() }
+                                // The chip shown next to "Added by"/"Created" is the device's ID, not
+                                // the member's — a member can log in from more than one device, and
+                                // the device-to-member mapping/metadata itself stays cloud-only.
+                                val loggedByDeviceId = groupEntries.firstNotNullOfOrNull {
+                                    it.loggedByDeviceId?.takeIf { id -> id.isNotBlank() }
                                 }
                                 val noteText = groupEntries.firstNotNullOfOrNull {
                                     it.note.takeIf { n -> n.isNotBlank() }
@@ -199,29 +216,35 @@ fun HistoryScreen(
                                 val canDelete = filter != HistoryFilter.Deleted &&
                                     canDeleteLatest &&
                                     groupId == latestRechargeGroupId
+                                val quietSelfDelete = filter == HistoryFilter.Deleted &&
+                                    recharge?.let { DeletionRules.isQuietSelfDelete(it) } == true
                                 var expanded by remember(groupId) { mutableStateOf(false) }
 
                                 Card(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .alpha(if (quietSelfDelete) 0.55f else 1f),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (filter == HistoryFilter.Deleted) {
-                                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
-                                        } else {
-                                            CardDefaults.cardColors().containerColor
+                                        containerColor = when {
+                                            filter == HistoryFilter.Deleted && !quietSelfDelete ->
+                                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                                            else -> CardDefaults.cardColors().containerColor
                                         }
                                     )
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (recharge != null) {
-                                                Icon(
-                                                    Icons.Filled.Bolt,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                            }
+                                            Icon(
+                                                if (recharge != null) Icons.Filled.Bolt else Icons.Filled.Schedule,
+                                                contentDescription = null,
+                                                tint = if (filter == HistoryFilter.Deleted && !quietSelfDelete) {
+                                                    MaterialTheme.colorScheme.error
+                                                } else {
+                                                    MaterialTheme.colorScheme.primary
+                                                },
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = recharge?.let {
@@ -238,6 +261,15 @@ fun HistoryScreen(
                                                     )
                                                 }
                                             }
+                                            if (filter == HistoryFilter.Deleted && !quietSelfDelete) {
+                                                Icon(
+                                                    Icons.Filled.WarningAmber,
+                                                    contentDescription = "Notable deletion",
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                            }
                                             Text(
                                                 text = dateFormat.format(Date(ts)),
                                                 style = MaterialTheme.typography.labelSmall,
@@ -245,41 +277,80 @@ fun HistoryScreen(
                                             )
                                         }
 
-                                        if (filter == HistoryFilter.Deleted) {
-                                            Text(
-                                                text = "Deleted by ${recharge?.deletedByMemberName ?: "unknown"}",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.padding(top = 6.dp)
+                                        if (filter == HistoryFilter.Deleted && recharge != null) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            if (quietSelfDelete) {
+                                                MetaLine(
+                                                    icon = Icons.Filled.Person,
+                                                    text = "Self-corrected within 5 min — not flagged",
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    fontStyle = FontStyle.Italic,
+                                                )
+                                            } else {
+                                                PersonMetaLine(
+                                                    icon = Icons.Filled.Schedule,
+                                                    label = "Created",
+                                                    timeText = dateFormat.format(Date(recharge.timestampEpochMs)),
+                                                    name = loggedByName,
+                                                    memberId = loggedByDeviceId,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    clipboard = clipboard,
+                                                    context = context,
+                                                )
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                PersonMetaLine(
+                                                    icon = Icons.Filled.PersonOff,
+                                                    label = "Deleted",
+                                                    timeText = recharge.deletedAtEpochMs
+                                                        ?.let { dateFormat.format(Date(it)) }.orEmpty(),
+                                                    name = recharge.deletedByMemberName?.takeIf { it.isNotBlank() }
+                                                        ?: "unknown",
+                                                    // Same-name, different-device deletions are common (multiple
+                                                    // devices logged in as this member) — the ID shown is the
+                                                    // deleting device's, not a fixed per-member value.
+                                                    memberId = recharge.deletedByDeviceId,
+                                                    tint = MaterialTheme.colorScheme.error,
+                                                    clipboard = clipboard,
+                                                    context = context,
+                                                )
+                                                recharge.deletedAtEpochMs?.let { deletedAt ->
+                                                    Text(
+                                                        text = formatGap(recharge.timestampEpochMs, deletedAt),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.error,
+                                                        fontWeight = FontWeight.Medium,
+                                                        modifier = Modifier.padding(top = 4.dp, start = 22.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else if (loggedByName != null) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            PersonMetaLine(
+                                                icon = Icons.Filled.Person,
+                                                label = "Added by",
+                                                timeText = null,
+                                                name = loggedByName,
+                                                memberId = loggedByDeviceId,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                clipboard = clipboard,
+                                                context = context,
                                             )
                                         }
 
-                                        if (loggedByName != null || noteText != null) {
+                                        noteText?.let { note ->
                                             Spacer(modifier = Modifier.height(6.dp))
-                                            if (loggedByName != null) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = "Added by $loggedByName",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    )
-                                                    loggedById?.let { id ->
-                                                        Text(
-                                                            text = " · ${truncateId(id)}",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            modifier = Modifier.clickable {
-                                                                clipboard.setText(AnnotatedString(id))
-                                                                SystemToast.show(context, "Member ID copied")
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            noteText?.let { note ->
+                                            Row(verticalAlignment = Alignment.Top) {
+                                                Icon(
+                                                    Icons.Filled.FormatQuote,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
-                                                    text = "“$note”",
+                                                    text = note,
                                                     style = MaterialTheme.typography.labelSmall,
+                                                    fontStyle = FontStyle.Italic,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 )
                                             }
@@ -450,6 +521,96 @@ private fun HistorySectionTabs(
                     .background(MaterialTheme.colorScheme.primary),
             )
         }
+    }
+}
+
+/** Icon + label row, e.g. a quiet-self-delete caption. */
+@Composable
+private fun MetaLine(
+    icon: ImageVector,
+    text: String,
+    tint: Color,
+    fontStyle: FontStyle? = null,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(text = text, style = MaterialTheme.typography.labelSmall, color = tint, fontStyle = fontStyle)
+    }
+}
+
+/**
+ * Icon + "label [time ·] name [id-chip]" row — the id-chip copies the full ID on tap.
+ * [memberId] here is the *device's* ID, not a fixed per-member value: the same member
+ * name can show a different ID per line if they logged in from a different device.
+ */
+@Composable
+private fun PersonMetaLine(
+    icon: ImageVector,
+    label: String,
+    timeText: String?,
+    name: String?,
+    memberId: String?,
+    tint: Color,
+    clipboard: ClipboardManager,
+    context: Context,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(14.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        val text = when {
+            !timeText.isNullOrBlank() && !name.isNullOrBlank() -> "$label $timeText · $name"
+            !timeText.isNullOrBlank() -> "$label $timeText"
+            !name.isNullOrBlank() -> "$label $name"
+            else -> label
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+        )
+        memberId?.takeIf { it.isNotBlank() }?.let { id ->
+            Spacer(modifier = Modifier.width(4.dp))
+            IdChip(id = id, tint = tint, copyLabel = "Member ID copied", clipboard = clipboard, context = context)
+        }
+    }
+}
+
+/** Small rounded pill showing a truncated ID; tapping copies the full ID to clipboard. */
+@Composable
+private fun IdChip(
+    id: String,
+    tint: Color,
+    copyLabel: String,
+    clipboard: ClipboardManager,
+    context: Context,
+) {
+    Text(
+        text = truncateId(id),
+        style = MaterialTheme.typography.labelSmall,
+        color = tint,
+        modifier = Modifier
+            .background(tint.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(horizontal = 6.dp, vertical = 1.dp)
+            .clickable {
+                clipboard.setText(AnnotatedString(id))
+                SystemToast.show(context, copyLabel)
+            }
+    )
+}
+
+/** Human "Deleted Xm/h/d after creation" caption for a notable (non-quiet) deletion. */
+private fun formatGap(fromMs: Long, toMs: Long): String {
+    val diffMin = (toMs - fromMs).coerceAtLeast(0) / 60_000
+    return when {
+        diffMin < 1 -> "Deleted under a minute after creation"
+        diffMin < 60 -> "Deleted $diffMin min after creation"
+        diffMin < 60 * 24 -> {
+            val h = diffMin / 60
+            val m = diffMin % 60
+            if (m == 0L) "Deleted ${h}h after creation" else "Deleted ${h}h ${m}m after creation"
+        }
+        else -> "Deleted ${diffMin / (60 * 24)}d after creation"
     }
 }
 

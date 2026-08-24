@@ -10,6 +10,8 @@ import com.anant.splitbill.data.backup.mongo.MongoBackupRepository
 import android.util.Log
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.database.EntryEntity
+import com.anant.splitbill.data.model.DeletionRules
+import com.anant.splitbill.data.model.EntryType
 import com.anant.splitbill.data.repository.SplitBillRepository
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.data.settings.SettingsRepository
@@ -443,13 +445,18 @@ class BackupManager(
                 val after = repository.exportSnapshot().third
                 val newEntries = after.filter { it.id !in beforeIds && !it.deleted }
                 val newlyDeleted = after.filter { entry ->
+                    // A soft-deleted group is READING rows + one RECHARGE row — that's
+                    // one deletion event, not N. Only the RECHARGE row represents it.
+                    if (entry.type != EntryType.RECHARGE) return@filter false
                     if (!entry.deleted) return@filter false
                     val prior = beforeById[entry.id]
                     val becameDeleted = prior == null || !prior.deleted
                     if (!becameDeleted) return@filter false
-                    // Don't alert this device about its own delete, or repeats.
+                    // Don't alert this device about its own delete, a repeat, or a quiet
+                    // same-person self-correction made within minutes of creation.
                     entry.deletedByDeviceId != localDeviceId &&
-                        entry.id !in settings.notifiedDeletionIds
+                        entry.id !in settings.notifiedDeletionIds &&
+                        !DeletionRules.isQuietSelfDelete(entry)
                 }
                 PullDiff(newEntries = newEntries, newlyDeleted = newlyDeleted)
             }

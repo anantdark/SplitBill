@@ -57,9 +57,11 @@ data class EntryEntity(
     /** Member this row belongs to (reading / payer for recharge or expense). */
     val memberId: String?,
     val memberName: String,
-    /** Household member who logged this row on their device. */
+    /** Household member who logged this row, on this device. */
     val loggedByMemberId: String? = null,
     val loggedByMemberName: String? = null,
+    /** The specific device that logged this row — one member can have several. */
+    val loggedByDeviceId: String? = null,
     /** Meter reading (READING) or rupee amount (RECHARGE / EXPENSE). */
     val value: Double,
     /** Units consumed since previous reading (READING only). */

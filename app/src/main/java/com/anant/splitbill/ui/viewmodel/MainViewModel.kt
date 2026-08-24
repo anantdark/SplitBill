@@ -394,6 +394,7 @@ class MainViewModel(
                     note = note,
                     loggedByMemberId = self?.memberId,
                     loggedByMemberName = self?.name,
+                    loggedByDeviceId = DeviceIdentity.macId(context),
                 )
                 if (rechargeAmount > 0.0) {
                     recordRechargeAudit(context, rechargeMemberId, rechargeAmount, note)
