@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SplitBill — Room viewer</title>
+  <meta name="description" content="Look up a SplitBill room by Room ID, view its recharge history, and log a new recharge, right in the browser." />
+  <meta name="robots" content="noindex" />
+  <link rel="canonical" href="https://anantdark.github.io/SplitBill/room.html" />
+  <link rel="icon" href="assets/icon-mark.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital@0;1&wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="room.css" />
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./">
+      <img src="assets/icon-mark.png" alt="" width="28" height="28" />
+      <span>SplitBill</span>
+    </a>
+    <button type="button" class="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Menu">
+      <svg class="icon-menu" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="icon-close" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+    <nav id="site-nav">
+      <a href="./#app">App</a>
+      <a href="docs/">Guide</a>
+      <a href="faq.html">FAQ</a>
+      <a href="room.html" aria-current="page">Room viewer</a>
+      <a href="https://github.com/anantdark/SplitBill" rel="noopener">Source</a>
+    </nav>
+  </header>
+
+  <main class="room-body">
+    <section class="room-hero">
+      <p class="kicker">Room viewer</p>
+      <h1>Check a room's recharge history</h1>
+      <p class="lede">
+        Enter the Room ID shown in the app's Settings screen to pull the latest synced
+        recharge history, and log a new recharge from here too.
+      </p>
+
+      <form id="room-form" class="room-form" autocomplete="off">
+        <label class="visually-hidden" for="room-id-input">Room ID</label>
+        <input
+          id="room-id-input"
+          name="roomId"
+          type="text"
+          inputmode="text"
+          placeholder="Paste your Room ID…"
+          spellcheck="false"
+          required
+        />
+        <button type="submit" class="btn primary" id="room-submit">Load room</button>
+      </form>
+
+      <p class="room-status" id="room-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="room-results" id="room-results" hidden>
+      <div class="room-summary" id="room-summary"></div>
+
+      <div class="panel-head room-panel-head">
+        <h2>Recharge history</h2>
+        <p>Most recent first. Deleted entries are hidden.</p>
+      </div>
+      <div class="room-table-wrap">
+        <table class="room-table" id="recharge-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Member</th>
+              <th>Amount</th>
+              <th>Logged by</th>
+              <th>Note</th>
+            </tr>
+          </thead>
+          <tbody id="recharge-tbody"></tbody>
+        </table>
+      </div>
+      <p class="fine room-empty" id="recharge-empty" hidden>No recharges logged yet for this room.</p>
+
+      <div class="panel-head room-panel-head">
+        <h2>Log a recharge</h2>
+        <p>Enter every member's current meter reading plus who paid and how much — same as the app.</p>
+      </div>
+      <form id="recharge-form" class="recharge-form" autocomplete="off">
+        <div class="recharge-room-select-wrap" id="recharge-room-select-wrap" hidden>
+          <label for="recharge-room-select">Room</label>
+          <select id="recharge-room-select"></select>
+        </div>
+        <div class="recharge-readings" id="recharge-readings"></div>
+        <div class="recharge-fields">
+          <div class="field">
+            <label for="recharge-payer">Paid by</label>
+            <select id="recharge-payer" required></select>
+          </div>
+          <div class="field">
+            <label for="recharge-amount">Amount</label>
+            <input id="recharge-amount" type="number" min="0.01" step="0.01" inputmode="decimal" required />
+          </div>
+          <div class="field field-wide">
+            <label for="recharge-note">Note (optional)</label>
+            <input id="recharge-note" type="text" maxlength="200" />
+          </div>
+        </div>
+        <button type="submit" class="btn primary" id="recharge-submit">Log recharge</button>
+        <p class="room-status" id="recharge-status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p class="footer-note">SplitBill · GPL-3.0 · unofficial web room viewer</p>
+    <div class="footer-links">
+      <a href="privacy.html">Privacy</a>
+      <a href="faq.html">FAQ</a>
+      <a href="https://github.com/anantdark/SplitBill">GitHub</a>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+  <script src="billing.js"></script>
+  <script src="room.js"></script>
+</body>
+</html>
