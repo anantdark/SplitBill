@@ -49,6 +49,41 @@
   let currentBackupData = null;
   let currentSelectedRoomLocalId = null;
 
+  const LAST_ROOM_ID_KEY = "splitbill_last_room_id";
+
+  function getSavedRoomId() {
+    try {
+      return localStorage.getItem(LAST_ROOM_ID_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveRoomId(roomId) {
+    try {
+      localStorage.setItem(LAST_ROOM_ID_KEY, roomId);
+    } catch {
+      // Storage unavailable (private mode etc.) — just skip persisting.
+    }
+  }
+
+  /** Remembers which member this browser last logged a recharge as, per room. */
+  function getSavedMemberId(roomLocalId) {
+    try {
+      return localStorage.getItem(`splitbill_web_member_${roomLocalId}`);
+    } catch {
+      return null;
+    }
+  }
+
+  function saveMemberId(roomLocalId, memberId) {
+    try {
+      localStorage.setItem(`splitbill_web_member_${roomLocalId}`, memberId);
+    } catch {
+      // Storage unavailable — the dropdown just won't default to this next time.
+    }
+  }
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const roomId = input.value.trim();
@@ -61,10 +96,23 @@
     renderRechargeForm(currentBackupData);
   });
 
+  rechargePayerSelect?.addEventListener("change", () => {
+    if (currentSelectedRoomLocalId && rechargePayerSelect.value) {
+      saveMemberId(currentSelectedRoomLocalId, rechargePayerSelect.value);
+    }
+  });
+
   rechargeForm?.addEventListener("submit", (e) => {
     e.preventDefault();
     submitRecharge();
   });
+
+  // Restore the last-used room ID so returning visitors don't retype it.
+  const savedRoomId = getSavedRoomId();
+  if (savedRoomId) {
+    input.value = savedRoomId;
+    loadRoom(savedRoomId);
+  }
 
   async function loadRoom(roomId) {
     setBusy(true);
@@ -77,6 +125,7 @@
       currentRoomId = roomId;
       currentBackupData = backupData;
       currentSelectedRoomLocalId = pickDefaultRoomLocalId(backupData);
+      saveRoomId(roomId);
       renderRoom(backupData);
       renderRechargeForm(backupData);
       setStatus("");
@@ -441,6 +490,11 @@
       opt.textContent = m.name;
       rechargePayerSelect.appendChild(opt);
     }
+    // Default to whoever this browser logged a recharge as last time, if still a member.
+    const savedMemberId = getSavedMemberId(room.id);
+    if (savedMemberId && members.some((m) => m.id === savedMemberId)) {
+      rechargePayerSelect.value = savedMemberId;
+    }
   }
 
   async function submitRecharge() {
@@ -571,6 +625,7 @@
       });
 
       pingSentry({ roomId: currentRoomId, payerName: payer.name, amount, deviceId, deviceName, ip });
+      saveMemberId(room.id, payer.id);
 
       currentBackupData = updatedBackupData;
       renderRoom(updatedBackupData);
