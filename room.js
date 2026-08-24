@@ -337,6 +337,10 @@
 
       const loggedByTd = document.createElement("td");
       loggedByTd.textContent = entry.loggedByMemberName || "—";
+      if (entry.loggedByMemberId) {
+        loggedByTd.appendChild(document.createTextNode(" "));
+        loggedByTd.appendChild(memberIdChip(entry.loggedByMemberId));
+      }
       tr.appendChild(loggedByTd);
 
       const noteTd = document.createElement("td");
@@ -345,6 +349,29 @@
 
       tbody.appendChild(tr);
     }
+  }
+
+  /**
+   * Truncated, hoverable/clickable member ID chip. Hover shows the full ID via
+   * the native title tooltip; click copies it. The member-ID-to-device mapping
+   * itself stays in cloud storage only — this chip never exposes device info.
+   */
+  function memberIdChip(id) {
+    const chip = document.createElement("span");
+    chip.className = "member-id-chip";
+    chip.textContent = id.length > 8 ? `${id.slice(0, 8)}…` : id;
+    chip.title = id;
+    chip.tabIndex = 0;
+    chip.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(id);
+        chip.classList.add("member-id-chip--copied");
+        setTimeout(() => chip.classList.remove("member-id-chip--copied"), 1200);
+      } catch {
+        // Clipboard API unavailable (e.g. insecure context) — hover tooltip still shows the full ID.
+      }
+    });
+    return chip;
   }
 
   // ── Log a recharge ──────────────────────────────────────

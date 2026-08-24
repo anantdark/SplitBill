@@ -190,3 +190,27 @@
   color: var(--muted);
   font-size: 0.78rem;
 }
+
+.member-id-chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.member-id-chip:hover,
+.member-id-chip:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.member-id-chip--copied {
+  border-color: var(--accent);
+  color: var(--accent);
+}
