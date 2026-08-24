@@ -573,6 +573,10 @@
         rechargeAmount: amount,
         nowEpochMs: nowMs,
         groupId,
+        // The web form has no separate "who's using this device" step — the payer
+        // is also whoever's logging it, so they're the same person here.
+        loggedByMemberId: payer.id,
+        loggedByMemberName: payer.name,
       });
       const rechargeEntry = newEntries.find((e) => e.type === "RECHARGE");
       if (rechargeEntry && note) rechargeEntry.note = note;
