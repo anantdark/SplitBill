@@ -775,13 +775,20 @@
 
       const url = `https://${host}/api/${projectId}/envelope/?sentry_key=${publicKey}&sentry_version=7`;
       const blob = new Blob([envelope], { type: "application/x-sentry-envelope" });
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, blob);
-      } else {
-        fetch(url, { method: "POST", body: blob, keepalive: true }).catch(() => {});
-      }
-    } catch {
-      // Never let telemetry break the actual recharge flow.
+      // fetch (not sendBeacon) so a failed/blocked send is visible in the console —
+      // sendBeacon only reports "queued", never delivery, which made this silent to debug.
+      fetch(url, { method: "POST", body: blob, keepalive: true, mode: "cors" })
+        .then((res) => {
+          if (!res.ok) {
+            console.warn(`[SplitBill] Sentry ping rejected: ${res.status} ${res.statusText}`);
+          }
+        })
+        .catch((err) => {
+          // Most likely cause: an ad blocker / tracking-protection list blocking sentry.io.
+          console.warn("[SplitBill] Sentry ping failed to send (possibly blocked by browser/extension):", err);
+        });
+    } catch (err) {
+      console.warn("[SplitBill] Sentry ping threw before sending:", err);
     }
   }
 })();
