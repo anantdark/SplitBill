@@ -35,6 +35,7 @@ data class BackupData(
     val rooms: List<RoomEntity> = emptyList(),
     val members: List<MemberEntity> = emptyList(),
     val entries: List<EntryEntity> = emptyList(),
+    /** Retained for backward-compatible deserialization of older backups (never written on export). */
     val settings: BackupSettings? = null,
     /** Devices that have synced this room (for cloud tracing / device count). */
     val devices: List<RoomDevice> = emptyList(),

@@ -51,7 +51,6 @@ class BackupManager(
             rooms = rooms,
             members = members,
             entries = entries,
-            settings = BackupSettings.from(settings),
             devices = devices,
             auditLog = RoomSyncMeta.decodeAudit(settings.auditLogJson),
         )
@@ -62,7 +61,7 @@ class BackupManager(
     suspend fun toJson(): String = encode(buildBackupData())
 
     fun countRecords(data: BackupData): Int =
-        data.rooms.size + data.members.size + data.entries.size + if (data.settings != null) 1 else 0
+        data.rooms.size + data.members.size + data.entries.size
 
     suspend fun exportTo(uri: Uri, password: CharArray? = null): Int = withContext(Dispatchers.IO) {
         val data = buildBackupData()
@@ -242,7 +241,7 @@ class BackupManager(
         ) ?: error("No cloud room found for that Room ID")
         return when (val opened = openCloudPayload(doc.payloadJson)) {
             is OpenResult.Success -> {
-                val count = importFromJsonInternal(opened.payloadJson, adoptRoomId = id, applySettings = false)
+                val count = importFromJsonInternal(opened.payloadJson, adoptRoomId = id)
                 BackupImportResult.Success(count)
             }
             OpenResult.WrongPassword -> BackupImportResult.WrongPassword
@@ -271,7 +270,7 @@ class BackupManager(
             }
             when (val opened = openCloudPayload(doc.payloadJson)) {
                 is OpenResult.Success -> BackupImportResult.Success(
-                    importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId, applySettings = false)
+                    importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
                 )
                 OpenResult.WrongPassword -> BackupImportResult.WrongPassword
                 OpenResult.Corrupt -> BackupImportResult.Corrupt
@@ -367,16 +366,12 @@ class BackupManager(
     }
 
     /**
-     * @param applySettings Whether to adopt device-preference fields (theme, dev mode,
-     *   crash-reporting opt-in, etc.) from [data]'s settings. Off for anything that pulls
-     *   the *shared room* doc (sync/join/download) — other room members' devices shouldn't
-     *   be able to flip your local preferences. Only an explicit local-file restore
-     *   (a backup the user picked) should actually adopt them.
+     * Imports rooms/members/entries from a backup JSON. Settings are never imported —
+     * users configure their own preferences locally.
      */
     private suspend fun importFromJsonInternal(
         json: String,
         adoptRoomId: String? = null,
-        applySettings: Boolean = true,
     ): Int {
         val data = adapter.fromJson(json) ?: error(BackupErrorMessages.NOT_VALID_BACKUP)
         repository.replaceAllData(data.rooms, data.members, data.entries)
@@ -390,7 +385,6 @@ class BackupManager(
         }
 
         val current = settingsRepository.current()
-        val fromBackup = if (applySettings) data.settings?.toAppSettings(current) else null
         val mergedDevices = RoomSyncMeta.mergeDevices(
             RoomSyncMeta.decodeDevices(current.roomDevicesJson),
             data.devices,
@@ -399,23 +393,12 @@ class BackupManager(
             RoomSyncMeta.decodeAudit(current.auditLogJson),
             data.auditLog,
         )
-        val merged = (fromBackup ?: current).copy(
+        val merged = current.copy(
             supportId = canonicalId ?: current.supportId,
-            activeRoomId = canonicalId ?: fromBackup?.activeRoomId ?: current.activeRoomId,
-            onboardingComplete = if (canonicalId != null) {
-                true
-            } else {
-                fromBackup?.onboardingComplete ?: current.onboardingComplete
-            },
-            // Per-device identity — never take another phone's "you are" from the cloud.
-            defaultMemberId = current.defaultMemberId,
-            notifiedDeletionIds = current.notifiedDeletionIds,
+            activeRoomId = canonicalId ?: current.activeRoomId,
+            onboardingComplete = if (canonicalId != null) true else current.onboardingComplete,
             roomDevicesJson = RoomSyncMeta.encodeDevices(mergedDevices),
             auditLogJson = RoomSyncMeta.encodeAudit(mergedAudit),
-            cloudBackupEnabled = true,
-            cloudAutoUploadEnabled = true,
-            mongoDbName = effectiveMongoDbName(fromBackup ?: current),
-            mongoCollectionName = effectiveMongoCollection(fromBackup ?: current),
         )
         settingsRepository.update { merged }
         return countRecords(data)
@@ -449,7 +432,7 @@ class BackupManager(
                 val beforeById = before.associateBy { it.id }
                 val beforeIds = beforeById.keys
                 val localDeviceId = DeviceIdentity.macId(context)
-                importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId, applySettings = false)
+                importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
                 val after = repository.exportSnapshot().third
                 val newEntries = after.filter { it.id !in beforeIds && !it.deleted }
                 val newlyDeleted = after.filter { entry ->
