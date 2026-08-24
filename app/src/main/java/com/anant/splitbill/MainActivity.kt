@@ -23,6 +23,7 @@ import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.ui.RequestSyncNotificationPermission
 import com.anant.splitbill.ui.components.AnantEasterEggDialog
+import com.anant.splitbill.ui.screens.DeletionAlertDialog
 import com.anant.splitbill.ui.screens.MainShellScreen
 import com.anant.splitbill.ui.screens.MainTab
 import com.anant.splitbill.ui.screens.OnboardingScreen
@@ -80,6 +81,7 @@ private fun SplitBillNavHost(
     val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val showEasterEgg by viewModel.showEasterEgg.collectAsStateWithLifecycle()
+    val deletionAlert by viewModel.deletionAlert.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var startupUpdateChecked by remember { mutableStateOf(false) }
@@ -138,6 +140,12 @@ private fun SplitBillNavHost(
     if (showEasterEgg) {
         AnantEasterEggDialog(onDismiss = viewModel::dismissEasterEgg)
     }
+
+    DeletionAlertDialog(
+        deletedEntries = deletionAlert,
+        currencySymbol = dashboard?.currencySymbol ?: "Rs.",
+        onDismiss = viewModel::dismissDeletionAlert,
+    )
 
     when (needsOnboarding) {
         null -> {
@@ -226,7 +234,10 @@ private fun SplitBillNavHost(
                     onInvite = { viewModel.inviteToRoom(context) },
                     onRegenerateSupportId = viewModel::regenerateSupportId,
                     onMongoOverrides = viewModel::updateMongoOverrides,
-                    onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap
+                    onHeartDoubleTapHeartbeat = viewModel::sendHeartbeatFromLoveTap,
+                    onTestRechargeNotification = { viewModel.testRechargeNotification(context) },
+                    onTestDeletionNotification = { viewModel.testDeletionNotification(context) },
+                    onTestDeletionDialog = viewModel::testDeletionDialog
                 )
                 AppDestination.RecordRecharge -> RecordRechargeScreen(
                     members = dashboard?.members.orEmpty(),

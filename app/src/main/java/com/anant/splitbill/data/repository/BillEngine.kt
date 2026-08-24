@@ -137,6 +137,7 @@ object BillEngine {
         readings: Map<String, Double>,
         rechargeMemberId: String,
         rechargeAmount: Double,
+        note: String = "",
         nowEpochMs: Long = System.currentTimeMillis(),
         groupId: String = UUID.randomUUID().toString(),
         loggedByMemberId: String? = null,
@@ -212,6 +213,7 @@ object BillEngine {
                 loggedByMemberName = loggedByMemberName,
                 value = rechargeAmount,
                 consumption = null,
+                note = note,
                 timestampEpochMs = nowEpochMs + 1000L,
                 groupId = groupId,
                 balancesSnapshot = balancesString(working)

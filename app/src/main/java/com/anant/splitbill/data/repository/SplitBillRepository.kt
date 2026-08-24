@@ -149,6 +149,7 @@ class SplitBillRepository(private val context: Context) {
         readings: Map<String, Double>,
         rechargeMemberId: String,
         rechargeAmount: Double,
+        note: String = "",
         loggedByMemberId: String? = null,
         loggedByMemberName: String? = null,
     ) = withContext(Dispatchers.IO) {
@@ -162,38 +163,13 @@ class SplitBillRepository(private val context: Context) {
             readings = readings,
             rechargeMemberId = rechargeMemberId,
             rechargeAmount = rechargeAmount,
+            note = note,
             loggedByMemberId = loggedByMemberId,
             loggedByMemberName = loggedByMemberName,
         )
         entryDao.insertAll(result.entries)
         BalanceWidgetReceiver.requestUpdate(context)
     }
-
-    suspend fun recordExpense(
-        roomId: String,
-        payerId: String,
-        amount: Double,
-        note: String,
-        loggedByMemberId: String? = null,
-        loggedByMemberName: String? = null,
-    ) =
-        withContext(Dispatchers.IO) {
-            val members = memberDao.getMembers(roomId)
-            val entries = entryDao.getEntries(roomId)
-            val current = BillEngine.rebuild(members, entries)
-            val result = BillEngine.recordExpense(
-                roomId = roomId,
-                members = members,
-                current = current,
-                payerId = payerId,
-                amount = amount,
-                note = note,
-                loggedByMemberId = loggedByMemberId,
-                loggedByMemberName = loggedByMemberName,
-            )
-            entryDao.insertAll(result.entries)
-            BalanceWidgetReceiver.requestUpdate(context)
-        }
 
     suspend fun revertLastGroup(roomId: String) = withContext(Dispatchers.IO) {
         val latest = entryDao.latestActive(roomId) ?: return@withContext

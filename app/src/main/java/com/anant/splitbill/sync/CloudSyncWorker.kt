@@ -36,6 +36,7 @@ class CloudSyncWorker(
                 }
                 if (result.newlyDeletedEntries.isNotEmpty()) {
                     SyncNotifier.notifyDeletedEntries(app, result.newlyDeletedEntries, currency)
+                    DeletionAlertCenter.post(result.newlyDeletedEntries)
                     app.backupManager.markDeletionsNotified(
                         result.newlyDeletedEntries.map { it.id }
                     )

@@ -213,6 +213,15 @@ fun HistoryScreen(
                                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                             )
                                                         }
+                                                    entry.note
+                                                        .takeIf { it.isNotBlank() }
+                                                        ?.let { note ->
+                                                            Text(
+                                                                text = "“$note”",
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            )
+                                                        }
                                                 }
                                             }
                                         if (canDelete) {

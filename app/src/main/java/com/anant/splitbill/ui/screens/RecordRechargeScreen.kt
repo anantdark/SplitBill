@@ -8,19 +8,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -30,9 +31,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -48,7 +47,12 @@ fun RecordRechargeScreen(
     busy: Boolean,
     defaultMemberId: String? = null,
     onBack: () -> Unit,
-    onSubmit: (readings: Map<String, Double>, rechargeMemberId: String, rechargeAmount: Double) -> Unit,
+    onSubmit: (
+        readings: Map<String, Double>,
+        rechargeMemberId: String,
+        rechargeAmount: Double,
+        note: String,
+    ) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val readings = remember(members) {
@@ -64,6 +68,8 @@ fun RecordRechargeScreen(
         )
     }
     var rechargeAmount by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+    var memberDropdownExpanded by remember { mutableStateOf(false) }
 
     val canSave = !busy &&
         rechargeMemberId.isNotBlank() &&
@@ -149,42 +155,61 @@ fun RecordRechargeScreen(
                 modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
             )
 
-            Column(modifier = Modifier.selectableGroup()) {
-                members.forEach { member ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = rechargeMemberId == member.memberId,
-                                onClick = { rechargeMemberId = member.memberId },
-                                role = Role.RadioButton
-                            )
-                            .padding(vertical = 4.dp)
-                    ) {
-                        RadioButton(
-                            selected = rechargeMemberId == member.memberId,
-                            onClick = { rechargeMemberId = member.memberId }
-                        )
-                        Column {
-                            Text(member.name, style = MaterialTheme.typography.bodyLarge)
-                            when {
-                                member.memberId == defaultMemberId -> {
-                                    Text(
-                                        text = "You — default",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                member.isNextToRecharge -> {
-                                    Text(
-                                        text = "Suggested — lowest balance",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
+            val selectedMember = members.firstOrNull { it.memberId == rechargeMemberId }
+            ExposedDropdownMenuBox(
+                expanded = memberDropdownExpanded,
+                onExpandedChange = { memberDropdownExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = selectedMember?.name.orEmpty(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Who recharged?") },
+                    supportingText = {
+                        when {
+                            selectedMember?.memberId == defaultMemberId ->
+                                Text("You — default")
+                            selectedMember?.isNextToRecharge == true ->
+                                Text("Suggested — lowest balance")
                         }
+                    },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = memberDropdownExpanded)
+                    },
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = memberDropdownExpanded,
+                    onDismissRequest = { memberDropdownExpanded = false }
+                ) {
+                    members.forEach { member ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(member.name)
+                                    when {
+                                        member.memberId == defaultMemberId ->
+                                            Text(
+                                                text = "You — default",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        member.isNextToRecharge ->
+                                            Text(
+                                                text = "Suggested — lowest balance",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                rechargeMemberId = member.memberId
+                                memberDropdownExpanded = false
+                            }
+                        )
                     }
                 }
             }
@@ -201,6 +226,16 @@ fun RecordRechargeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("Notes (optional)") },
+                placeholder = { Text("e.g. Paid via UPI") },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
@@ -208,7 +243,7 @@ fun RecordRechargeScreen(
                         m.memberId to (readings[m.memberId].orEmpty().toDoubleOrNull() ?: 0.0)
                     }
                     val amount = rechargeAmount.toDoubleOrNull() ?: 0.0
-                    onSubmit(parsedReadings, rechargeMemberId, amount)
+                    onSubmit(parsedReadings, rechargeMemberId, amount, note.trim())
                 },
                 enabled = canSave,
                 modifier = Modifier.fillMaxWidth()

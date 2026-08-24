@@ -14,6 +14,7 @@ import com.anant.splitbill.data.repository.SplitBillRepository
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.data.settings.SettingsRepository
 import com.anant.splitbill.sync.CloudSyncWorker
+import com.anant.splitbill.sync.DeletionAlertCenter
 import com.anant.splitbill.sync.SyncNotifier
 import com.anant.splitbill.ui.widget.BalanceWidgetReceiver
 import kotlinx.coroutines.CoroutineScope
@@ -149,6 +150,7 @@ class SplitBillApp : Application() {
             }
             if (result.newlyDeletedEntries.isNotEmpty()) {
                 SyncNotifier.notifyDeletedEntries(this@SplitBillApp, result.newlyDeletedEntries, currency)
+                DeletionAlertCenter.post(result.newlyDeletedEntries)
                 backupManager.markDeletionsNotified(result.newlyDeletedEntries.map { it.id })
             }
             BalanceWidgetReceiver.requestUpdate(this@SplitBillApp)

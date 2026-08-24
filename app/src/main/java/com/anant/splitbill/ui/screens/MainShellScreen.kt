@@ -89,6 +89,9 @@ fun MainShellScreen(
     onRegenerateSupportId: () -> Unit,
     onMongoOverrides: (String, String) -> Unit,
     onHeartDoubleTapHeartbeat: () -> Unit = {},
+    onTestRechargeNotification: () -> Unit = {},
+    onTestDeletionNotification: () -> Unit = {},
+    onTestDeletionDialog: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val dismissKeyboard = rememberDismissKeyboard()
@@ -221,6 +224,9 @@ fun MainShellScreen(
                             onRegenerateSupportId = onRegenerateSupportId,
                             onMongoOverrides = onMongoOverrides,
                             onHeartDoubleTapHeartbeat = onHeartDoubleTapHeartbeat,
+                            onTestRechargeNotification = onTestRechargeNotification,
+                            onTestDeletionNotification = onTestDeletionNotification,
+                            onTestDeletionDialog = onTestDeletionDialog,
                             embedded = true,
                         )
                     }

@@ -108,6 +108,9 @@ fun SettingsScreen(
     onMongoOverrides: (String, String) -> Unit,
     /** Settings-only: ♥ double-tap also sends a Sentry heartbeat (when reporting is on). */
     onHeartDoubleTapHeartbeat: () -> Unit = {},
+    onTestRechargeNotification: () -> Unit = {},
+    onTestDeletionNotification: () -> Unit = {},
+    onTestDeletionDialog: () -> Unit = {},
     embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -522,6 +525,26 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) { Text("Save Atlas db / collection") }
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Sync notification tests", fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = "Fires the same alerts a real cloud sync would, using fake data.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        onClick = onTestRechargeNotification,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Test: new recharge notification") }
+                    OutlinedButton(
+                        onClick = onTestDeletionNotification,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Test: recharge deleted notification") }
+                    OutlinedButton(
+                        onClick = onTestDeletionDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Test: recharge deleted dialog") }
                 }
             }
 

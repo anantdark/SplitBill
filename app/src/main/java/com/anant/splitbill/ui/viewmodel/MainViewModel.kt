@@ -16,6 +16,7 @@ import com.anant.splitbill.data.backup.BackupImportResult
 import com.anant.splitbill.data.backup.BackupManager
 import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.database.EntryEntity
+import com.anant.splitbill.data.model.EntryType
 import com.anant.splitbill.data.model.RoomDashboard
 import com.anant.splitbill.data.model.ThemeMode
 import com.anant.splitbill.data.remote.UpdateCheckResult
@@ -23,6 +24,8 @@ import com.anant.splitbill.data.remote.UpdateChecker
 import com.anant.splitbill.data.repository.SplitBillRepository
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.data.settings.SettingsRepository
+import com.anant.splitbill.sync.DeletionAlertCenter
+import com.anant.splitbill.sync.SyncNotifier
 import com.anant.splitbill.ui.screens.MainTab
 import com.anant.splitbill.util.BackupShare
 import com.anant.splitbill.util.ShareUtils
@@ -92,6 +95,51 @@ class MainViewModel(
 
     private val _showEasterEgg = MutableStateFlow(false)
     val showEasterEgg: StateFlow<Boolean> = _showEasterEgg.asStateFlow()
+
+    /** Recharges deleted by another device that this session hasn't shown a dialog for yet. */
+    val deletionAlert: StateFlow<List<EntryEntity>> = DeletionAlertCenter.pending
+
+    fun dismissDeletionAlert() {
+        DeletionAlertCenter.consume()
+    }
+
+    /** Developer settings: fires the same system notification a real cloud-synced recharge would. */
+    fun testRechargeNotification(context: Context) {
+        val currency = dashboard.value?.currencySymbol ?: "Rs."
+        val member = dashboard.value?.members?.firstOrNull()
+        SyncNotifier.notifyNewEntries(context, listOf(fakeTestEntry(member?.name, deleted = false)), currency)
+    }
+
+    /** Developer settings: fires the same system notification a remote deletion would. */
+    fun testDeletionNotification(context: Context) {
+        val currency = dashboard.value?.currencySymbol ?: "Rs."
+        val member = dashboard.value?.members?.firstOrNull()
+        SyncNotifier.notifyDeletedEntries(context, listOf(fakeTestEntry(member?.name, deleted = true)), currency)
+    }
+
+    /** Developer settings: pushes into [DeletionAlertCenter] to preview the in-app dialog. */
+    fun testDeletionDialog() {
+        val member = dashboard.value?.members?.firstOrNull()
+        DeletionAlertCenter.post(listOf(fakeTestEntry(member?.name, deleted = true)))
+    }
+
+    private fun fakeTestEntry(memberName: String?, deleted: Boolean): EntryEntity {
+        val now = System.currentTimeMillis()
+        return EntryEntity(
+            id = "test-${now}",
+            roomId = settings.value.activeRoomId.orEmpty(),
+            type = EntryType.RECHARGE,
+            memberId = null,
+            memberName = memberName ?: "Test member",
+            value = 199.0,
+            timestampEpochMs = now,
+            groupId = "test-group-$now",
+            balancesSnapshot = "",
+            deleted = deleted,
+            deletedAtEpochMs = if (deleted) now else null,
+            deletedByMemberName = if (deleted) "Test device" else null,
+        )
+    }
 
     val dashboard: StateFlow<RoomDashboard?> = settings
         .flatMapLatest { s ->
@@ -326,7 +374,8 @@ class MainViewModel(
     fun recordReadingsAndRecharge(
         readings: Map<String, Double>,
         rechargeMemberId: String,
-        rechargeAmount: Double
+        rechargeAmount: Double,
+        note: String = "",
     ) {
         viewModelScope.launch {
             val roomId = settings.value.activeRoomId ?: return@launch
@@ -339,6 +388,7 @@ class MainViewModel(
                     readings = readings,
                     rechargeMemberId = rechargeMemberId,
                     rechargeAmount = rechargeAmount,
+                    note = note,
                     loggedByMemberId = self?.memberId,
                     loggedByMemberName = self?.name,
                 )
