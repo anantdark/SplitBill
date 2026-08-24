@@ -384,11 +384,14 @@
       amountTd.textContent = `${currency}${Number(entry.value).toFixed(2)}`;
       tr.appendChild(amountTd);
 
+      // Shows the member's name plus the *device* ID, not the member ID — the same
+      // member logging in from a second device shows the same name with a
+      // different chip. The member-to-device mapping/metadata stays cloud-only.
       const loggedByTd = document.createElement("td");
       loggedByTd.textContent = entry.loggedByMemberName || "—";
-      if (entry.loggedByMemberId) {
+      if (entry.loggedByDeviceId) {
         loggedByTd.appendChild(document.createTextNode(" "));
-        loggedByTd.appendChild(memberIdChip(entry.loggedByMemberId));
+        loggedByTd.appendChild(memberIdChip(entry.loggedByDeviceId));
       }
       tr.appendChild(loggedByTd);
 
@@ -564,6 +567,7 @@
 
       const groupId = crypto.randomUUID();
       const nowMs = Date.now();
+      const deviceId = getOrCreateDeviceId();
       const { entries: newEntries } = window.SplitBillEngine.recordReadingsAndRecharge({
         roomId: room.id,
         members,
@@ -573,15 +577,16 @@
         rechargeAmount: amount,
         nowEpochMs: nowMs,
         groupId,
-        // The web form has no separate "who's using this device" step — the payer
-        // is also whoever's logging it, so they're the same person here.
+        // loggedByMemberId is the fixed household member (payer, here — the web
+        // form has no separate device-identity step); loggedByDeviceId is what's
+        // shown in the room table, since one member can log in from several devices.
         loggedByMemberId: payer.id,
         loggedByMemberName: payer.name,
+        loggedByDeviceId: deviceId,
       });
       const rechargeEntry = newEntries.find((e) => e.type === "RECHARGE");
       if (rechargeEntry && note) rechargeEntry.note = note;
 
-      const deviceId = getOrCreateDeviceId();
       const deviceName = describeDevice();
       const ip = await fetchPublicIp();
 

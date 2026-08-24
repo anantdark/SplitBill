@@ -94,6 +94,7 @@ window.SplitBillEngine = (() => {
     groupId,
     loggedByMemberId = null,
     loggedByMemberName = null,
+    loggedByDeviceId = null,
   }) {
     const ordered = [...members].sort((a, b) => a.sortOrder - b.sortOrder);
     if (ordered.length === 0) throw new Error("Add at least one member");
@@ -128,6 +129,7 @@ window.SplitBillEngine = (() => {
         memberName: m.name,
         loggedByMemberId,
         loggedByMemberName,
+        loggedByDeviceId,
         value: newVal,
         consumption,
         note: "",
@@ -164,6 +166,7 @@ window.SplitBillEngine = (() => {
         memberName: payer.name,
         loggedByMemberId,
         loggedByMemberName,
+        loggedByDeviceId,
         value: rechargeAmount,
         consumption: null,
         note: "",
