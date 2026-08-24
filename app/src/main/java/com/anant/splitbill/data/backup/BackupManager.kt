@@ -242,7 +242,7 @@ class BackupManager(
         ) ?: error("No cloud room found for that Room ID")
         return when (val opened = openCloudPayload(doc.payloadJson)) {
             is OpenResult.Success -> {
-                val count = importFromJsonInternal(opened.payloadJson, adoptRoomId = id)
+                val count = importFromJsonInternal(opened.payloadJson, adoptRoomId = id, applySettings = false)
                 BackupImportResult.Success(count)
             }
             OpenResult.WrongPassword -> BackupImportResult.WrongPassword
@@ -271,7 +271,7 @@ class BackupManager(
             }
             when (val opened = openCloudPayload(doc.payloadJson)) {
                 is OpenResult.Success -> BackupImportResult.Success(
-                    importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
+                    importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId, applySettings = false)
                 )
                 OpenResult.WrongPassword -> BackupImportResult.WrongPassword
                 OpenResult.Corrupt -> BackupImportResult.Corrupt
@@ -366,9 +366,17 @@ class BackupManager(
         }
     }
 
+    /**
+     * @param applySettings Whether to adopt device-preference fields (theme, dev mode,
+     *   crash-reporting opt-in, etc.) from [data]'s settings. Off for anything that pulls
+     *   the *shared room* doc (sync/join/download) — other room members' devices shouldn't
+     *   be able to flip your local preferences. Only an explicit local-file restore
+     *   (a backup the user picked) should actually adopt them.
+     */
     private suspend fun importFromJsonInternal(
         json: String,
         adoptRoomId: String? = null,
+        applySettings: Boolean = true,
     ): Int {
         val data = adapter.fromJson(json) ?: error(BackupErrorMessages.NOT_VALID_BACKUP)
         repository.replaceAllData(data.rooms, data.members, data.entries)
@@ -382,7 +390,7 @@ class BackupManager(
         }
 
         val current = settingsRepository.current()
-        val fromBackup = data.settings?.toAppSettings(current)
+        val fromBackup = if (applySettings) data.settings?.toAppSettings(current) else null
         val mergedDevices = RoomSyncMeta.mergeDevices(
             RoomSyncMeta.decodeDevices(current.roomDevicesJson),
             data.devices,
@@ -441,7 +449,7 @@ class BackupManager(
                 val beforeById = before.associateBy { it.id }
                 val beforeIds = beforeById.keys
                 val localDeviceId = DeviceIdentity.macId(context)
-                importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId)
+                importFromJsonInternal(opened.payloadJson, adoptRoomId = supportId, applySettings = false)
                 val after = repository.exportSnapshot().third
                 val newEntries = after.filter { it.id !in beforeIds && !it.deleted }
                 val newlyDeleted = after.filter { entry ->
