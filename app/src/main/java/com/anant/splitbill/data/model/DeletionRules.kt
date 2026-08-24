@@ -10,7 +10,12 @@ import com.anant.splitbill.data.database.EntryEntity
 object DeletionRules {
     const val QUIET_SELF_DELETE_WINDOW_MS = 5L * 60L * 1000L
 
-    /** True when the same person who logged this recharge deleted it within the quiet window. */
+    /**
+     * True when the same person, on the same device, deleted their own recharge within
+     * the quiet window. A different device — even under the same member name — means
+     * it wasn't necessarily them (or at least not the device that created it), so it's
+     * flagged like any other notable deletion.
+     */
     fun isQuietSelfDelete(entry: EntryEntity): Boolean {
         if (!entry.deleted || entry.type != EntryType.RECHARGE) return false
         val deletedAt = entry.deletedAtEpochMs ?: return false
@@ -18,6 +23,13 @@ object DeletionRules {
             ?: entry.memberId?.takeIf { it.isNotBlank() }
         val deleterId = entry.deletedByMemberId?.takeIf { it.isNotBlank() }
         if (creatorId == null || deleterId == null || creatorId != deleterId) return false
+
+        val creatorDeviceId = entry.loggedByDeviceId?.takeIf { it.isNotBlank() }
+        val deleterDeviceId = entry.deletedByDeviceId?.takeIf { it.isNotBlank() }
+        if (creatorDeviceId == null || deleterDeviceId == null || creatorDeviceId != deleterDeviceId) {
+            return false
+        }
+
         val gap = deletedAt - entry.timestampEpochMs
         return gap in 0..QUIET_SELF_DELETE_WINDOW_MS
     }
