@@ -101,8 +101,42 @@ class MainViewModel(
     /** Recharges deleted by another device that this session hasn't shown a dialog for yet. */
     val deletionAlert: StateFlow<List<EntryEntity>> = DeletionAlertCenter.pending
 
+    val historyConflict = backupManager.historyConflict
+
     fun dismissDeletionAlert() {
         DeletionAlertCenter.consume()
+    }
+
+    fun dismissCloudOverwrite() {
+        backupManager.dismissHistoryConflict()
+        _userMessage.value = "Kept local data — sync skipped"
+    }
+
+    fun confirmCloudOverwrite() {
+        viewModelScope.launch {
+            _busy.value = true
+            _cloudSyncing.value = true
+            try {
+                backupManager.confirmOverwriteLocalFromCloud()
+                    .onSuccess { result ->
+                        if (result.newlyDeletedEntries.isNotEmpty()) {
+                            backupManager.markDeletionsNotified(
+                                result.newlyDeletedEntries.map { it.id }
+                            )
+                        }
+                        _userMessage.value = "Local data replaced from cloud"
+                        if (!settingsRepository.current().developerModeUnlocked) {
+                            backupManager.pushCloud()
+                        }
+                    }
+                    .onFailure { e ->
+                        _userMessage.value = e.message ?: "Couldn't overwrite from cloud"
+                    }
+            } finally {
+                _busy.value = false
+                _cloudSyncing.value = false
+            }
+        }
     }
 
     /** Developer settings: fires the same system notification a real cloud-synced recharge would. */
@@ -402,7 +436,14 @@ class MainViewModel(
                 _destination.value = AppDestination.Main
                 _mainTab.value = MainTab.Home
                 if (settingsRepository.current().cloudAutoUploadEnabled) {
-                    backupManager.syncCloud().onFailure { e ->
+                    backupManager.syncCloud()
+                        .onSuccess { result ->
+                            if (result.historyConflict != null) {
+                                // Dialog is driven by backupManager.historyConflict.
+                                return@onSuccess
+                            }
+                        }
+                        .onFailure { e ->
                         _userMessage.value =
                             e.message?.let { "Saved locally, but cloud sync failed: $it" }
                                 ?: "Saved locally, but cloud sync failed"
@@ -528,6 +569,10 @@ class MainViewModel(
             try {
                 backupManager.syncCloud()
                     .onSuccess { result ->
+                        if (result.historyConflict != null) {
+                            // Dialog is driven by backupManager.historyConflict.
+                            return@onSuccess
+                        }
                         if (result.newlyDeletedEntries.isNotEmpty()) {
                             backupManager.markDeletionsNotified(
                                 result.newlyDeletedEntries.map { it.id }
@@ -651,6 +696,10 @@ class MainViewModel(
             try {
                 backupManager.pullLatestFromCloud()
                     .onSuccess { result ->
+                        if (result.historyConflict != null) {
+                            // Dialog is driven by backupManager.historyConflict.
+                            return@onSuccess
+                        }
                         if (result.newlyDeletedEntries.isNotEmpty()) {
                             backupManager.markDeletionsNotified(
                                 result.newlyDeletedEntries.map { it.id }

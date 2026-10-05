@@ -18,6 +18,9 @@ import com.anant.splitbill.data.settings.SettingsRepository
 import com.anant.splitbill.util.DeviceIdentity
 import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -32,6 +35,18 @@ class BackupManager(
 ) {
     val crypto = BackupCrypto(moshi)
     private val adapter = moshi.adapter(BackupData::class.java).indent("  ")
+
+    private val _historyConflict = MutableStateFlow<CloudHistoryConflict?>(null)
+    /** Non-null when pull/push needs the user to accept overwriting local from cloud. */
+    val historyConflict: StateFlow<CloudHistoryConflict?> = _historyConflict.asStateFlow()
+
+    @Volatile
+    private var pendingOverwrite: PendingOverwrite? = null
+
+    private data class PendingOverwrite(
+        val supportId: String,
+        val payloadJson: String,
+    )
 
     suspend fun buildBackupData(): BackupData = withContext(Dispatchers.IO) {
         val (rooms, members, entries) = repository.exportSnapshot()
@@ -117,6 +132,48 @@ class BackupManager(
             recordCount = countRecords(buildBackupData()),
             newEntries = pull.newEntries,
             newlyDeletedEntries = pull.newlyDeleted,
+            historyConflict = pull.conflict,
+        )
+    }
+
+    /** Drops a pending overwrite prompt without changing local data. */
+    fun dismissHistoryConflict() {
+        pendingOverwrite = null
+        _historyConflict.value = null
+    }
+
+    /**
+     * User accepted the conflict prompt: replace local rooms/members/entries
+     * with the cloud snapshot that was held back.
+     */
+    suspend fun confirmOverwriteLocalFromCloud(): Result<SyncCloudResult> = runCatching {
+        if (!MongoUriVault.isAvailable()) error("Cloud backup is not available in this build")
+        val pending = pendingOverwrite
+            ?: error("No cloud overwrite is pending")
+        pendingOverwrite = null
+        _historyConflict.value = null
+        val before = repository.exportSnapshot().third
+        val beforeById = before.associateBy { it.id }
+        val beforeIds = beforeById.keys
+        importFromJsonInternal(pending.payloadJson, adoptRoomId = pending.supportId)
+        val after = repository.exportSnapshot().third
+        val settings = settingsRepository.current()
+        val localDeviceId = DeviceIdentity.macId(context)
+        val newEntries = after.filter { it.id !in beforeIds && !it.deleted }
+        val newlyDeleted = after.filter { entry ->
+            if (entry.type != EntryType.RECHARGE) return@filter false
+            if (!entry.deleted) return@filter false
+            val prior = beforeById[entry.id]
+            val becameDeleted = prior == null || !prior.deleted
+            becameDeleted &&
+                entry.deletedByDeviceId != localDeviceId &&
+                entry.id !in settings.notifiedDeletionIds &&
+                !DeletionRules.isQuietSelfDelete(entry)
+        }
+        SyncCloudResult(
+            recordCount = countRecords(buildBackupData()),
+            newEntries = newEntries,
+            newlyDeletedEntries = newlyDeleted,
         )
     }
 
@@ -131,7 +188,7 @@ class BackupManager(
         val settings = settingsRepository.current()
         if (settings.developerModeUnlocked) return@runCatching 0
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
-        pushCloudUnlocked(supportId)
+        pushCloudUnlocked(supportId).recordCount
     }
 
     /**
@@ -145,15 +202,33 @@ class BackupManager(
         val settings = settingsRepository.current()
         val supportId = settings.supportId.ifBlank { settingsRepository.ensureSupportId() }
         val pull = pullLatestUnlocked(supportId)
-        val count = if (settings.developerModeUnlocked) {
-            countRecords(buildBackupData())
+        if (pull.conflict != null) {
+            // Wait for the user to overwrite or keep local — do not push yet.
+            return@runCatching SyncCloudResult(
+                recordCount = countRecords(buildBackupData()),
+                newEntries = pull.newEntries,
+                newlyDeletedEntries = pull.newlyDeleted,
+                historyConflict = pull.conflict,
+            )
+        }
+        val push = if (settings.developerModeUnlocked) {
+            PushOutcome(countRecords(buildBackupData()))
         } else {
             pushCloudUnlocked(supportId)
         }
+        if (push.conflict != null) {
+            return@runCatching SyncCloudResult(
+                recordCount = push.recordCount,
+                newEntries = pull.newEntries,
+                newlyDeletedEntries = pull.newlyDeleted,
+                historyConflict = push.conflict,
+            )
+        }
         SyncCloudResult(
-            recordCount = count,
+            recordCount = push.recordCount,
             newEntries = pull.newEntries,
             newlyDeletedEntries = pull.newlyDeleted,
+            recoveredHistory = false,
         )
     }
 
@@ -407,9 +482,15 @@ class BackupManager(
     private data class PullDiff(
         val newEntries: List<EntryEntity> = emptyList(),
         val newlyDeleted: List<EntryEntity> = emptyList(),
+        val conflict: CloudHistoryConflict? = null,
     )
 
-    /** Diffes cloud vs local, then imports when cloud is newer. */
+    private data class PushOutcome(
+        val recordCount: Int,
+        val conflict: CloudHistoryConflict? = null,
+    )
+
+    /** Diffes cloud vs local, then imports when the cloud copy is safe to apply. */
     private suspend fun pullLatestUnlocked(supportId: String): PullDiff {
         val settings = settingsRepository.current()
         val remote = mongoRepository.tryDownloadDoc(
@@ -422,12 +503,47 @@ class BackupManager(
 
         return when (val opened = openCloudPayload(remote.payloadJson)) {
             is OpenResult.Success -> {
-                val cloudData = adapter.fromJson(opened.payloadJson)
-                val cloudExportedAt = maxOf(remote.exportedAt, cloudData?.exportedAt ?: 0L)
+                val cloudData = adapter.fromJson(opened.payloadJson) ?: return PullDiff()
+                val localBackup = buildBackupData()
+
+                // Local empty/diverging vs cloud — block auto-pull; ask to overwrite.
+                val missingOnLocal = RechargeHistoryGuard.missingRechargeIds(
+                    baseline = cloudData,
+                    candidate = localBackup,
+                )
+                if (missingOnLocal.isNotEmpty()) {
+                    Log.w(
+                        TAG,
+                        "pullLatest: local missing ${missingOnLocal.size} cloud recharge(s); " +
+                            "blocking until overwrite confirmed"
+                    )
+                    return promptOverwrite(supportId, opened.payloadJson, CloudHistoryConflict.localDiverging(missingOnLocal.size))
+                }
+
+                val cloudExportedAt = maxOf(remote.exportedAt, cloudData.exportedAt)
                 val localFreshness = localDataFreshnessMs()
-                if (cloudData == null || cloudExportedAt < localFreshness) {
+                if (cloudExportedAt < localFreshness) {
                     return PullDiff()
                 }
+
+                // Cloud is missing local-only recharges — ask before replacing local.
+                val missingOnCloud = RechargeHistoryGuard.missingRechargeIds(
+                    baseline = localBackup,
+                    candidate = cloudData,
+                )
+                if (missingOnCloud.isNotEmpty()) {
+                    Log.w(
+                        TAG,
+                        "pullLatest: cloud missing ${missingOnCloud.size} local recharge(s); " +
+                            "prompting before overwrite"
+                    )
+                    return promptOverwrite(
+                        supportId,
+                        opened.payloadJson,
+                        CloudHistoryConflict.cloudMissingLocal(missingOnCloud.size),
+                    )
+                }
+
                 val before = repository.exportSnapshot().third
                 val beforeById = before.associateBy { it.id }
                 val beforeIds = beforeById.keys
@@ -436,15 +552,11 @@ class BackupManager(
                 val after = repository.exportSnapshot().third
                 val newEntries = after.filter { it.id !in beforeIds && !it.deleted }
                 val newlyDeleted = after.filter { entry ->
-                    // A soft-deleted group is READING rows + one RECHARGE row — that's
-                    // one deletion event, not N. Only the RECHARGE row represents it.
                     if (entry.type != EntryType.RECHARGE) return@filter false
                     if (!entry.deleted) return@filter false
                     val prior = beforeById[entry.id]
                     val becameDeleted = prior == null || !prior.deleted
                     if (!becameDeleted) return@filter false
-                    // Don't alert this device about its own delete, a repeat, or a quiet
-                    // same-person self-correction made within minutes of creation.
                     entry.deletedByDeviceId != localDeviceId &&
                         entry.id !in settings.notifiedDeletionIds &&
                         !DeletionRules.isQuietSelfDelete(entry)
@@ -457,7 +569,17 @@ class BackupManager(
         }
     }
 
-    private suspend fun pushCloudUnlocked(supportId: String): Int {
+    private fun promptOverwrite(
+        supportId: String,
+        payloadJson: String,
+        conflict: CloudHistoryConflict,
+    ): PullDiff {
+        pendingOverwrite = PendingOverwrite(supportId = supportId, payloadJson = payloadJson)
+        _historyConflict.value = conflict
+        return PullDiff(conflict = conflict)
+    }
+
+    private suspend fun pushCloudUnlocked(supportId: String): PushOutcome {
         repository.alignPrimaryRoomId(supportId)
         val deviceId = DeviceIdentity.macId(context)
         val deviceName = DeviceIdentity.deviceName(context)
@@ -481,6 +603,10 @@ class BackupManager(
         }
         val settings = settingsRepository.current()
         val data = buildBackupData()
+        val blocked = blockPushIfLocalDiverges(supportId, settings, data)
+        if (blocked != null) {
+            return PushOutcome(countRecords(data), conflict = blocked)
+        }
         val payloadJson = crypto.sealCompressed(encode(data))
         val lastAudit = data.auditLog.lastOrNull()
         mongoRepository.upload(
@@ -511,7 +637,44 @@ class BackupManager(
                 auditLogJson = RoomSyncMeta.encodeAudit(data.auditLog),
             )
         }
-        return countRecords(data)
+        return PushOutcome(countRecords(data))
+    }
+
+    /**
+     * If local is empty/missing cloud recharges, block the push and prompt to
+     * overwrite from cloud instead of uploading a diverging snapshot.
+     */
+    private suspend fun blockPushIfLocalDiverges(
+        supportId: String,
+        settings: AppSettings,
+        localData: BackupData,
+    ): CloudHistoryConflict? {
+        val remote = mongoRepository.tryDownloadDoc(
+            baseUrl = MongoUriVault.baseUrl(),
+            apiKey = MongoUriVault.resolve(),
+            databaseName = effectiveMongoDbName(settings),
+            collectionName = effectiveMongoCollection(settings),
+            supportId = supportId,
+        ) ?: return null
+        val opened = openCloudPayload(remote.payloadJson)
+        if (opened !is OpenResult.Success) return null
+        val cloudData = adapter.fromJson(opened.payloadJson) ?: return null
+        val missingOnLocal = RechargeHistoryGuard.missingRechargeIds(
+            baseline = cloudData,
+            candidate = localData,
+        )
+        if (missingOnLocal.isEmpty()) return null
+        Log.w(
+            TAG,
+            "push: local missing ${missingOnLocal.size} cloud recharge(s); blocking push"
+        )
+        val conflict = CloudHistoryConflict.localDiverging(missingOnLocal.size)
+        pendingOverwrite = PendingOverwrite(
+            supportId = supportId,
+            payloadJson = opened.payloadJson,
+        )
+        _historyConflict.value = conflict
+        return conflict
     }
 
     /**

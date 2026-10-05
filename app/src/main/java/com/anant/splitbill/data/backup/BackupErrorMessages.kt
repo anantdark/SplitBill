@@ -19,4 +19,9 @@ object BackupErrorMessages {
                 "If you reinstalled or cleared app data, use Join room with your saved Room ID."
         }
     }
+
+    fun cloudHistoryWipeRejected(reason: String?): String {
+        val detail = reason?.trim()?.takeIf { it.isNotBlank() }
+        return detail ?: RechargeHistoryGuard.rejectionMessage(missingCount = 1)
+    }
 }

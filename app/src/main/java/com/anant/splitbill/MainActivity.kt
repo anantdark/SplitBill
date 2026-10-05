@@ -23,6 +23,7 @@ import com.anant.splitbill.data.backup.mongo.MongoUriVault
 import com.anant.splitbill.data.settings.AppSettings
 import com.anant.splitbill.ui.RequestSyncNotificationPermission
 import com.anant.splitbill.ui.components.AnantEasterEggDialog
+import com.anant.splitbill.ui.screens.CloudOverwriteDialog
 import com.anant.splitbill.ui.screens.DeletionAlertDialog
 import com.anant.splitbill.ui.screens.MainShellScreen
 import com.anant.splitbill.ui.screens.MainTab
@@ -82,6 +83,7 @@ private fun SplitBillNavHost(
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val showEasterEgg by viewModel.showEasterEgg.collectAsStateWithLifecycle()
     val deletionAlert by viewModel.deletionAlert.collectAsStateWithLifecycle()
+    val historyConflict by viewModel.historyConflict.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var startupUpdateChecked by remember { mutableStateOf(false) }
@@ -145,6 +147,12 @@ private fun SplitBillNavHost(
         deletedEntries = deletionAlert,
         currencySymbol = dashboard?.currencySymbol ?: "Rs.",
         onDismiss = viewModel::dismissDeletionAlert,
+    )
+
+    CloudOverwriteDialog(
+        conflict = historyConflict,
+        onOverwrite = viewModel::confirmCloudOverwrite,
+        onKeepLocal = viewModel::dismissCloudOverwrite,
     )
 
     when (needsOnboarding) {
